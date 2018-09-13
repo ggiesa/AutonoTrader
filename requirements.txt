@@ -1,0 +1,7 @@
+ndjson==0.1.0
+yattag==1.10.0
+requests==2.18.4
+plotly==2.7.0
+PyMySQL==0.7.11
+pandas==0.23.0
+numpy==1.14.1
