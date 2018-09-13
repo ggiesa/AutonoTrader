@@ -156,7 +156,6 @@ def insert_hourly_candles(symbols, startTime=None, endTime=None,
                 )
 
 
-
 def insert_tickers():
     pass
 

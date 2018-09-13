@@ -24,14 +24,34 @@ from ingestion import data_collection as dc
 from errors.exceptions import DiscontinuousError, ImplementationError
 
 
-
+# TODO Restructure SQL parameter design
 class Core:
     def __init__(self, sql_config = {}, verbose = True):
+        """
+        Core uses user supplied data and algorithms to generate trading signals.
+
+        Parameters:
+        -------------
+        sql_config: dict with optional keys. Empty to operate without DB.
+            key options:
+            'truncate_tables':boolean
+                True ---> truncate buy/sell/pending tables in the database
+                before insert.
+            'test':boolean
+                True ---> use the test db rather than production db
+
+        verbose: boolean
+            True ---> display a progress bar with profit stats.
+
+
+        """
+
         self.sql_config = sql_config
         self.verbose = verbose
         self._setup()
 
     def _setup(self):
+        """Acquire data and initialize portfolio and state variables."""
 
         # Get user data
         self.symbols = self._get_symbols()
@@ -59,6 +79,8 @@ class Core:
 
 
     def _get_data(self):
+        """Parse user-supplied data into dict of DataEngine objects."""
+
         data = self.get_data()
 
         required_data = ['open','close','open_date','high','low','close_date']
@@ -74,6 +96,7 @@ class Core:
         self.total_candles = len(temp_dates)
         self.start_date, self.end_date = min(temp_dates), max(temp_dates)
 
+        # Divide df based on symbol, create DataEngine object, add to dict.
         data_dict = {}
         for symbol in self.symbols.symbol:
             try:
@@ -88,8 +111,10 @@ class Core:
         return data_dict
 
 
-    # TODO Automatically find symbols?
+    # TODO Automatically find symbols from DB?
     def _get_symbols(self):
+        """Ensure that user-supplied symbols are formatted correctly."""
+
         symbols = self.get_symbols()
 
         if isinstance(symbols, dict):
@@ -158,7 +183,7 @@ class Core:
 
     def generate_signals(self):
         """
-        Must implement generate_signals method that determines whether to buy,
+        Implement generate_signals method that determines whether to buy,
             sell, or do nothing.
             - If buying, call the buy() method.
             - If selling, call the sell() method.
@@ -170,10 +195,23 @@ class Core:
 
 
     def report(self):
+        """
+        Print a report of generated profits containing:
+            - Initial Portfolio Value
+            - Final Portfolio Value
+            - Portfolio Value Change
+            - Portfolio Value Percent Change
+            - Total Trades
+            - Trades Per Week
+            - Overall Market Change
+            - Max Consecutive Losses
+            - Win Percent
+        """
         metrics = Metrics(self)
         metrics.report()
 
     def buy(self):
+        """Simulate a buy order on the current price using TradeManager."""
 
         from_symbol = self.symbol
         to_symbol = self.currency
@@ -189,6 +227,11 @@ class Core:
 
 
     def sell(self):
+        """
+        Simulate a 1:1 market sell order. TradeManager searches for the pending
+        trade with the lowest price, sells the same amount that was bought, and
+        records profits.
+        """
 
         from_symbol = self.symbol
         to_symbol = self.currency
@@ -204,6 +247,7 @@ class Core:
 
 
     def sell_all(self):
+        """Simulate a complete exit in position with TradeManager."""
 
         from_symbol = self.symbol
         to_symbol = self.currency
@@ -219,8 +263,10 @@ class Core:
 
 
     def run(self):
-
-        # Iterate through available market data
+        """
+        Iterate through available market data, generating signals and buying/
+        selling accordingly.
+        """
         self._run()
 
         if self.sql_config:
@@ -231,10 +277,10 @@ class Core:
 
     def _run(self):
 
-        # For progress bar
+        # Keep track of iterations for progress bar
         count = 1
 
-        # Initialize
+        # Initialize symbol and DataEngine
         symbol = self.symbols.symbol.iloc[0]
         self.data = self.data_dict[symbol]
 
@@ -256,6 +302,7 @@ class Core:
                 self.generate_signals()
                 self.data_dict[symbol].increment()
 
+            # Update progress bar
             if self.verbose:
                 m = self.trade_manager.currency_earned.items()
                 msg = ', '.join([f"{cur}: {round(amt,4)}" for cur,amt in m])
@@ -266,7 +313,7 @@ class Core:
 
 
 class TradeManager:
-    """Keeps track of trades."""
+    """Keeps track of bot trades."""
     def __init__(self, symbols, portfolio, sql_config):
 
         self.symbols = symbols
@@ -332,9 +379,11 @@ class TradeManager:
             self.sqlm = None
 
     def __repr__(self):
+        # Assume the representation of the trades dict
         return self.trades.__repr__()
 
     def buy(self, from_symbol, to_symbol, price, amount, date):
+        """Simulate market buy."""
 
         # Don't buy if we'd go over the holdout amount
         if self.purse[to_symbol] > self.holdout[to_symbol]:
@@ -364,6 +413,8 @@ class TradeManager:
 
 
     def sell(self, from_symbol, to_symbol, price, amount, date):
+        """Simulate market sell."""
+
         if self.unresolved_trade[from_symbol]:
             self.trades[from_symbol]['sells']['date'].append(date)
             self.trades[from_symbol]['sells']['price'].append(price)
@@ -372,6 +423,8 @@ class TradeManager:
 
 
     def sell_all(self, from_symbol, to_symbol, price, amount, date):
+        """Simulate market sell, selling entire position."""
+
         if self.unresolved_trade[from_symbol]:
             self.trades[from_symbol]['sells']['date'].append(date)
             self.trades[from_symbol]['sells']['price'].append(price)
@@ -381,8 +434,11 @@ class TradeManager:
                 )
 
 
-    def _resolve_trades(self, from_symbol, to_symbol, date, price,
-                        sell_all = False):
+    def _resolve_trades(self, from_symbol, to_symbol, date, price, sell_all=False):
+        """
+        Calculate and record the profits generated from a sell, factoring in
+        slippage and trading fees.
+        """
 
         # Calculate profits on past trades
         trades = deepcopy(self.trades[from_symbol])
@@ -464,6 +520,8 @@ class TradeManager:
 
 
     def _append_all_buys(self, buy, from_symbol, date):
+        """Append buy results to the all_buys DataFrame."""
+
         buy['symbol'] = from_symbol
         buy['date'] = tb.DateConvert(buy['date']).date
         self.all_buys = pd.concat([pd.DataFrame(buy, index=[0]),
@@ -475,6 +533,8 @@ class TradeManager:
 
 
     def _append_all_sells(self, sell, from_symbol, date, price):
+        """Append sell results to the all_sells DataFrame."""
+
         sell['symbol'] = from_symbol
         sell['date'] = date
         sell['price'] = price
@@ -488,6 +548,8 @@ class TradeManager:
 
 
     def _append_unresolved(self, buy, from_symbol, date, price):
+        """Append buy results to unresolved_trades for a given symbol."""
+
         temp = {
             'id':buy['id'],
             'symbol':from_symbol,
@@ -504,6 +566,7 @@ class TradeManager:
 
 
     def _remove_unresolved(self, trade, from_symbol):
+        """Remove a resolved trade from a symbol's unresolved_trades list."""
         self.trades[from_symbol]['unresolved_trades'].remove(trade)
         self.num_unresolved[from_symbol] -= 1
 
@@ -525,6 +588,7 @@ class DataEngine:
 
 
     def _check_data_continuity(self):
+        """Ensure that candles provided form a continuous timeseries."""
         dates = list(self.data.open_date.unique())
         dates.sort()
 
@@ -542,6 +606,11 @@ class DataEngine:
             )
 
     def __getitem__(self, ind):
+        """
+        Always access the most recent candle at index 0. Previous candles
+        are accessed with negative indices, future candles can be accessed with
+        positive indices.
+        """
         try:
 
             if isinstance(ind, slice):
@@ -570,11 +639,13 @@ class DataEngine:
         return self.data.__repr__()
 
     def increment(self):
+        """Increment the current candle forward in time by one candle."""
         self.increments += 1
         if self.increments == self.length:
             self.finished = True
 
     def reset_index(self):
+        """Reset candle index to the begining."""
         self.increments = 0
 
 
@@ -583,8 +654,13 @@ class SQLManager:
     """Manages SQL database operations."""
     def __init__(self, sql_config):
 
+        # Print info about inserts
         self.verbose = True
+
+        # Truncate buy/sell/pending tables before insert
         self.truncate_tables = False
+
+        # Use the test database instead of production database
         self.test = True
 
         if 'test' in sql_config:
@@ -604,7 +680,15 @@ class SQLManager:
         self.pending = {}
         self._get_fields()
 
+
     def _format_sql(self, trade, table):
+        """Format dict items for insert into database.
+
+            - Add parentheses around strings
+            - Convert None values to NULL
+            - Format dates to be friendly with SQL
+
+        """
 
         trade = copy(trade)
         for key, value in trade.items():
@@ -620,29 +704,35 @@ class SQLManager:
         return {k:v for k,v in trade.items() if k in self.fields[table]}
 
     def _get_fields(self):
+        """Acquire column names from tables."""
         tables = [self.sell_table, self.buy_table, self.pending_table]
         for table in tables:
             sql = f'SHOW COLUMNS in {table}'
             self.fields[table] = list(tb.Database().read(sql).Field)
 
     def add_buy(self, trade):
+        """Add buy to pending database inserts."""
         trade = self._format_sql(trade, self.buy_table)
         self.buys[trade['id']] = trade
 
     def add_sell(self, trade):
+        """Add sell to pending database inserts."""
         trade = self._format_sql(trade, self.sell_table)
         self.sells[trade['id']] = trade
 
     def add_pending(self, trade):
+        """Add unresolved trade to pending database inserts."""
         trade = self._format_sql(trade, self.pending_table)
         self.pending[trade['id']] = trade
 
     def remove_pending(self, trade):
+        """Remove unresolved trade from pending database inserts."""
         trade = self._format_sql(trade, self.pending_table)
         del self.pending[trade['id']]
 
 
     def insert_trades(self):
+        """Insert trades into database."""
 
         if self.truncate_tables:
             if self.verbose:
@@ -831,13 +921,16 @@ class Metrics:
 
 
 class Forwardtest:
+    """Simulate trading in a live environment."""
     def __init__(self):
         pass
 
 class Livetrade:
+    """Trade with real money, using exchange APIs"""
     def __init__(self):
         pass
 
 class Backtest(Core):
+    """Backtest completely offline or with results inserted into database."""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

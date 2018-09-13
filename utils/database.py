@@ -43,7 +43,15 @@ class Database:
 
 
     def write(self, sql):
-        '''Perform any command that makes a change to the database.'''
+        '''
+        Perform any command that requires commiting a change to the database.
+
+        Parameters:
+        -----------
+        sql: string
+            A valid MySQL command.
+
+        '''
         try:
             with self.cursor as cursor:
                 cursor.execute(sql)
@@ -55,9 +63,43 @@ class Database:
 
 
     def insert(self, table, ins, auto_format=False, verbose=False):
-        '''Insert a new row into a table with a dict or list of dicts. dicts
-            should be structured with keys corresponding to column names in sql
-            table.'''
+        '''
+        Insert a new row or set of rows into a table.
+
+        Parameters:
+        ------------
+        table: string
+            The name of the SQL table to be inserted into.
+
+        ins: dict | list of dicts | pandas.DataFrame
+            Data to be inserted. Dicts should be structured with keys
+            corresponding to column names in the sql table.
+
+            Examples:
+
+                Single dict:
+                {'<column1>':<value1>, '<column2>':<value2>}
+
+                List of dicts (records):
+                [{'<column1>':<value1>, '<column2>':<value2>},
+                {'<column1>':<value1>, '<column2>':<value2>}]
+
+                DataFrame:
+                | column1 | column2 | column3 |
+                -------------------------------
+                | value1  | value2  | value3  |
+                | value4  | value5  | value6  |
+
+        auto_format: boolean
+            True ---> Format dict items for insert into database:
+                - Add parentheses around strings
+                - Convert None values to NULL
+                - Format dates to be friendly with SQL
+
+        verbose: boolean
+            True ---> If insert is large, display a progress bar.
+
+        '''
 
         sql = None
         if ins is None:
@@ -128,8 +170,8 @@ class Database:
             raise err
 
 
-    def execute(self, sql, as_df = True):
-        '''Return data from sql SELECT command.'''
+    def execute(self, sql):
+        '''Return a pandas.DataFrame containing data a sql SELECT command.'''
 
         try:
             with self.cursor as cursor:
@@ -155,11 +197,39 @@ class Database:
         pass
 
 
+# TODO Should probably be moved to utils.toolbox
 class AssembleSQL:
+    """Compose a SQL query given a table and set of logical conditions."""
+
     def _assemble_sql(self, table, conditions = None):
+        """
+        Parameters:
+        ----------
+        table: string
+            A valid name of a SQL table
+
+        conditions: dict | list of dicts
+            dict or list of dicts containing SQL WHERE conditions.
+            Format:
+                {'column':<column name>,
+                'operator':<logical_operator>,
+                'value':<comparison value>}
+            Example:
+                {'column':close,
+                'operator':>,
+                'value':2000}
+
+        Returns:
+        ---------
+        sql: string
+            Formatted SQL query.
+        """
 
         sql = f"SELECT * FROM {table}"
         if conditions:
+
+            if isinstance(conditions, dict):
+                conditions = [conditions]
 
             add = []
             for c in conditions:
@@ -175,8 +245,26 @@ class AssembleSQL:
 
 
 class Candles(AssembleSQL):
+    """Get candles from an SQL database."""
 
     def get_raw(self, symbol = None, from_date = None, to_date = None):
+        """
+        Get raw candles from the database.
+
+        Parameters:
+        -----------
+        symbol: string
+            A valid cryptocurreny symbol.
+
+        from_date, to_date: string, format '%Y-%m-%d %H:%M:%S'
+            Dates for query, resulting in expression:
+            from_date < open_date < to_date
+
+        Returns
+        -----------
+        candles: pd.DataFrame
+            The results of the composed query.
+        """
 
         conditions = []
         if from_date:
@@ -201,6 +289,23 @@ class Candles(AssembleSQL):
 
 
     def get_engineered(self, symbol = None, from_date = None, to_date = None):
+        """
+        Get engineered candles from the database.
+
+        Parameters:
+        -----------
+        symbol: string
+            A valid cryptocurreny symbol.
+
+        from_date, to_date: string, format '%Y-%m-%d %H:%M:%S'
+            Dates for query, resulting in expression:
+            from_date < open_date < to_date
+
+        Returns
+        -----------
+        candles: pd.DataFrame
+            The results of the composed query.
+        """
 
         conditions = []
         if from_date:
@@ -226,8 +331,30 @@ class Candles(AssembleSQL):
 
 class Trades(AssembleSQL):
 
-    def get_trades(self, symbol = None, from_date = None, to_date = None,
-                   type = None):
+    def get_trades(self, symbol = None, from_date = None,
+                   to_date = None,  type = None):
+
+        """
+        Get bot trades from the database.
+
+        Parameters:
+        -----------
+        symbol: string
+            A valid cryptocurreny symbol.
+
+        from_date, to_date: string, format '%Y-%m-%d %H:%M:%S'
+            Dates for query, resulting in expression:
+            from_date < date < to_date
+
+        type: string; 'buy' | 'sell'
+            Filter trades by type
+
+        Returns
+        -----------
+        candles: pd.DataFrame
+            The results of the composed query.
+        """
+
         conditions = []
         if from_date:
             from_date = DateConvert(from_date).date
@@ -264,7 +391,7 @@ def get_symbols():
 
 def get_pairs():
     """
-    Return a pd.DataFrame of user symbols from the user_symbols table, like
+    Return a pandas.DataFrame of user symbols from the user_symbols table, like:
     | from_symbol | to_symbol |
     """
     ret = Database().execute(
@@ -274,6 +401,10 @@ def get_pairs():
 
 
 def get_symbols_and_pairs():
+    """
+    Return a pandas.DataFrame of user symbols from the user_symbols table, like:
+    | symbol | from_symbol | to_symbol |
+    """
     ret =  Database().execute(
         'SELECT * FROM user_symbols;'
         )
@@ -282,7 +413,20 @@ def get_symbols_and_pairs():
 
 
 def get_most_recent_dates(symbols, db='autonotrader'):
-    """Get the most recent candle date for a given symbol."""
+    """
+    Get the most recent candle date for a given symbol or list of symbols in the
+    database.
+
+    Parameters:
+    -------------
+    symbol: string
+        A valid cryptocurreny symbol
+
+    Returns:
+    -------------
+    most_recent_dates: dict
+        dict like {'<symbol>':<most_recent_date>}
+    """
 
     if isinstance(symbols, str):
         symbols = [symbols]
@@ -297,14 +441,24 @@ def get_most_recent_dates(symbols, db='autonotrader'):
 
         most_recent_dates[symbol] = date
 
-    # if len(most_recent_dates.keys()) == 1:
-    #     return most_recent_dates[symbol]
-    # else:
     return most_recent_dates
 
 
 def get_oldest_dates(symbols, db='autonotrader'):
-    """Get the oldest candle dates for a given symbol."""
+    """
+    Get the earliest candle date for a given symbol or list of symbols in the
+    database.
+
+    Parameters:
+    -------------
+    symbol: string
+        A valid cryptocurreny symbol
+
+    Returns:
+    -------------
+    most_recent_dates: dict
+        dict like {'<symbol>':<earliest_date>}
+    """
 
     if isinstance(symbols, str):
         symbols = [symbols]
@@ -319,7 +473,4 @@ def get_oldest_dates(symbols, db='autonotrader'):
 
         oldest_dates[symbol] = date
 
-    # if len(oldest_dates.keys()) == 1:
-    #     return oldest_dates[symbol]
-    # else:
     return oldest_dates

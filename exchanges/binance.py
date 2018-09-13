@@ -22,13 +22,56 @@ class BinanceData(ExchangeData):
         self.client = Client(config['api_key'], config['api_secret'])
 
     def ticker(self, symbol):
+        """Get a single ticker price for a given symbol.
+
+            Parameters:
+            ------------
+            symbol: string
+                A valid binance cryptocurreny symbol
+
+            Returns:
+            ------------
+            tickers: dict
+                Items like: {<symbol>:<price>}
+        """
         return self.client.get_symbol_ticker(symbol = symbol)
 
     def all_tickers(self):
+        """Get ticker prices for all cryptocurrencies on Binance."""
         cols = ['symbol','price']
         return pd.DataFrame.from_dict(self.client.get_all_tickers())[cols]
 
+
     def candle(self, symbol, limit = None, startTime = None, endTime = None):
+        """
+        Get hourly candles for a single symbol from the Binance API.
+
+        Parameters:
+        -----------
+        symbol: string
+            A valid binance cryptocurreny symbol.
+
+        limit: int; min 1, max 500
+            The max amount of candles to return.
+
+        startTime: datetime object
+            The start of candle interval
+
+        endTime: datetime object
+            The end of candle interval
+
+
+        Returns:
+        -----------
+        df: pandas.DataFrame
+
+            Columns:
+
+            'symbol', 'open_date', 'open', 'high', 'low', 'close', 'volume',
+            'close_date', 'quote_asset_volume', 'number_of_trades',
+            'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume',
+
+        """
 
         if startTime:
             startTime = tb.DateConvert(startTime).timestamp*1000
@@ -71,6 +114,16 @@ class BinanceData(ExchangeData):
         return df[reorder]
 
     def symbols(self):
+        """
+        Get all valid symbols from the binance API.
+
+        Returns:
+        ---------
+        symbols: pd.DataFrame
+            Columns:
+            | 'symbol' | 'from_symbol' | 'to_symbol' |
+        """
+
         info = self.client.get_exchange_info()['symbols']
 
         symbols = []
@@ -87,13 +140,28 @@ class BinanceData(ExchangeData):
         return s
 
 
-
+# TODO Test, complete documentation.
 class BinanceOrders(ExchangeOrders):
     '''Handle order calls to binance.'''
     def __init__(self, config = config.binance):
         self.client = Client(config['api_key'], config['api_secret'])
 
     def buy_order(self, symbol, quantity, test = True):
+        """
+        Place a market buy order via the binance API.
+
+        Parameters:
+        ------------
+        symbol: string
+            A valid binance cryptocurreny symbol.
+
+        quantity: int | float
+            The amount of <symbol> to buy.
+
+        test: boolean
+            True ---> Simulate a buy via the Binance API to check authorization.
+
+        """
 
         if test:
             order = self.client.create_test_order(symbol=symbol,
@@ -109,6 +177,21 @@ class BinanceOrders(ExchangeOrders):
 
 
     def sell_order(self, symbol, quantity, test = True):
+        """
+        Place a market buy order via the binance API.
+
+        Parameters:
+        ------------
+        symbol: string
+            A valid binance cryptocurreny symbol.
+
+        quantity: int | float
+            The amount of <symbol> to buy.
+
+        test: boolean
+            True ---> Simulate a buy via the Binance API to check authorization.
+
+        """
 
         if test:
             order = self.client.create_test_order(symbol=symbol,
@@ -124,14 +207,17 @@ class BinanceOrders(ExchangeOrders):
 
 
     def account_balance(self):
+        """Check account balance for all cryptocurrencies."""
         return self.client.get_account()['balances']
 
 
     def coin_balance(self, symbol):
+        """Check balance for a given cryptocurreny"""
         return self.client.get_asset_balance(symbol)
 
 
     def account_status(self):
+        """Check for normal account status."""
         status = self.client.get_account_status()
         if status['msg'] == 'Normal' and status['success']:
             return True
@@ -139,10 +225,12 @@ class BinanceOrders(ExchangeOrders):
             return False
 
     def all_orders(self, symbol):
+        """Get records of all orders."""
         return self.client.get_all_orders(symbol=symbol)
 
 
     def trades(self, symbol):
+        """Get records of all trades."""
         return self.client.get_my_trades(symbol = symbol)
 
 
@@ -150,7 +238,7 @@ class BinanceOrders(ExchangeOrders):
 def check_binance_server_time_diff(verbose=True, ret=False):
     '''
     Check the difference between the binance server time and local machine
-    time.
+    time. If clocks are out of sync, Binance won't allow trades.
     '''
 
     client = Client(config.binance['api_key'], config.binance['api_secret'])
