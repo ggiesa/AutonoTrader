@@ -134,6 +134,34 @@ class TestBot10(base.Backtest):
         elif self.data[0].close > self.data[0].moving_avg_48:
             self.sell_all()
 
+class BuySell(base.Backtest):
+
+    def get_data(self):
+        sql = "SELECT * FROM engineered_data ORDER BY open_date DESC LIMIT 1000"
+        return tb.Database().read(sql)
+
+    def get_symbols(self):
+        return dc.get_symbols_and_pairs(as_df=True)
+
+    def initialize_portfolio(self):
+        purse = {'USDT':1000, 'BTC':1.5}
+        buy_sell_amount = {'BTC':.05, 'USDT':75}
+        holdout = {'USDT':.2, 'BTC':.2}
+        slippage = .05
+        trading_fee = .001
+        return {
+            'purse':purse,
+            'holdout':holdout,
+            'buy_sell_amount':buy_sell_amount,
+            'slippage':slippage,
+            'trading_fee':trading_fee
+            }
+
+    def generate_signals(self):
+        self.buy()
+        self.sell()
+
+
 
 def test_duplicate_trades(bot):
 
@@ -175,35 +203,7 @@ def test_number_of_trades(bot):
     total_buys = len(bot.trade_manager.all_buys)
     assert total_resolved + total_unresolved == total_buys
 
-
-class BuySell(base.Backtest):
-
-    def get_data(self):
-        sql = "SELECT * FROM engineered_data ORDER BY open_date DESC LIMIT 1000"
-        return tb.Database().read(sql)
-
-    def get_symbols(self):
-        return dc.get_symbols_and_pairs(as_df=True)
-
-    def initialize_portfolio(self):
-        purse = {'USDT':1000, 'BTC':1.5}
-        buy_sell_amount = {'BTC':.05, 'USDT':75}
-        holdout = {'USDT':.2, 'BTC':.2}
-        slippage = .05
-        trading_fee = .001
-        return {
-            'purse':purse,
-            'holdout':holdout,
-            'buy_sell_amount':buy_sell_amount,
-            'slippage':slippage,
-            'trading_fee':trading_fee
-            }
-
-    def generate_signals(self):
-        self.buy()
-        self.sell()
-
-
+    
 class TestBacktest(unittest.TestCase):
     def setUp(self):
         self.tb1 = JustADA() # Symbol 1
