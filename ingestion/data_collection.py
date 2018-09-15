@@ -14,13 +14,14 @@ from utils import toolbox as tb
 from utils.toolbox import DateConvert, chunker, progress_bar
 from utils.database import Database, get_oldest_dates
 from exchanges.binance import BinanceData
+from exchanges.cryptocompare import CryptocompareData
 from errors.exceptions import DiscontinuousError
 
 
 # TODO Add support for selecting based on exchange
 def insert_hourly_candles(symbols, startTime=None, endTime=None,
                           db='test', debug=False, verbose=False,
-                          avoid_duplicates=True):
+                          avoid_duplicates=True, datasource=None):
     """
     Get candles from the binance API, insert into the database.
         - If no startTime or endTime is provided, inserts the most recent
@@ -52,6 +53,9 @@ def insert_hourly_candles(symbols, startTime=None, endTime=None,
     verbose: boolean
         Setting to True will display a progress bar for data collection and
         database inserts.
+
+    datasource: initialized exchanges.base.ExchangeData object
+
 
     """
 
@@ -104,9 +108,15 @@ def insert_hourly_candles(symbols, startTime=None, endTime=None,
                     elif oldest_dates[symbol] < DateConvert(sub_endTime).datetime:
                         sub_endTime = oldest_dates[symbol]
 
-                candles = BinanceData().candle(
-                    symbol, startTime = sub_startTime, endTime = sub_endTime
-                )
+                #TODO generalize
+                if datasource:
+                    candles = datasource.candle(
+                        symbol, startTime = sub_startTime, endTime = sub_endTime
+                    )
+                else:
+                    candles = BinanceData().candle(
+                        symbol, startTime = sub_startTime, endTime = sub_endTime
+                    )
                 to_insert = pd.concat([to_insert, candles])
 
                 iteration+=1

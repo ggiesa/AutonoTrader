@@ -178,13 +178,10 @@ class Database:
                 cursor.execute(sql)
             result = self.cursor.fetchall()
             if result:
-                if as_df:
-                    result = pd.DataFrame(result)
-                    if 'id' in result.columns:
-                        result = result.drop('id', axis=1)
-                    return result
-                else:
-                    return result
+                result = pd.DataFrame(result)
+                if 'id' in result.columns:
+                    result = result.drop('id', axis=1)
+                return result
             else:
                 return pd.DataFrame()
 

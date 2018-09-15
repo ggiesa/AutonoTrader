@@ -83,7 +83,7 @@ class Core:
 
         data = self.get_data()
 
-        required_data = ['open','close','open_date','high','low','close_date']
+        required_data = ['open','close','open_date','high','low']
         if not np.isin(required_data, data.columns).all():
             raise ImplementationError(f'''
                 Data must contain columns: {required_data}
