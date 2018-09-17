@@ -5,7 +5,6 @@ from exchanges.base import ExchangeData
 from utils.toolbox import decode_api_response, DateConvert
 
 
-
 class CryptocompareData(ExchangeData):
     def __init__(self, exchange):
         """
@@ -22,7 +21,7 @@ class CryptocompareData(ExchangeData):
         <to_symbol> in calls to candle and ticker.
         """
         url = 'https://min-api.cryptocompare.com/data/all/exchanges'
-        exchange_info = decode_api_response(url)[self.exchange]
+        exchange_info = decode_api_response(url)[1][self.exchange]
 
         symbols = []
         for symbol in exchange_info:
@@ -43,7 +42,7 @@ class CryptocompareData(ExchangeData):
         pass
 
 
-    def candle(self, symbol, limit = None, startTime = None, endTime = None):
+    def candle(self, symbol, limit = 1, startTime = None, endTime = None):
         """
         Get hourly candles for a single symbol from an exchange.
 
@@ -104,6 +103,9 @@ class CryptocompareData(ExchangeData):
             date_range = pd.date_range(startTime, endTime, freq='1H')
             limit = len(date_range)
 
+        elif not endTime:
+            endTime = datetime.utcnow()
+
         endTime = DateConvert(endTime).timestamp
 
         # URL parameters
@@ -120,7 +122,7 @@ class CryptocompareData(ExchangeData):
                 count+=1
 
         # Get Response from GET call
-        data = decode_api_response(url)
+        data = decode_api_response(url)[1]
         data = pd.DataFrame(data['Data'])
 
         # Convert from timestamp to datetime, set as index
@@ -129,13 +131,16 @@ class CryptocompareData(ExchangeData):
         data = data.drop('time', axis=1)
 
         # TODO Figure out volume config
-        # reorder = [
-        #     'symbol', 'open_date', 'open', 'high', 'low', 'close', 'volume',
-        #     'close_date', 'quote_asset_volume', 'number_of_trades',
-        #     'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume',
-        # ]
-
-        return data
+        reorder = [
+            'symbol', 'open_date', 'open', 'high', 'low', 'close', 'volume',
+            'close_date', 'quote_asset_volume', 'number_of_trades',
+            'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume',
+        ]
+        print(limit)
+        if limit == 1:
+            return data.iloc[-1].T
+        else:
+            return data
 
 
     def symbols(self):

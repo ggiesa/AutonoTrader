@@ -8,7 +8,7 @@ import urllib.request as request
 import requests
 import ndjson
 import pymysql
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import sys
 
@@ -22,7 +22,10 @@ import config.config as config
 
 def decode_api_response(url):
     '''Return JSON from url response.'''
+
     response = requests.get(url)
+    status = response.status_code
+
     try:
         response = response.json()
     except:
@@ -30,7 +33,9 @@ def decode_api_response(url):
             response = ndjson.loads(response.text)
         except:
             print("Bad response")
-    return response
+            response = None
+
+    return (status, response)
 
 
 class DateConvert:
@@ -120,6 +125,9 @@ def format_records(records, exclude=[]):
     exclude: list of strings
         Strings correspond to dict keys that should be excluded from alteration.
     """
+    if isinstance(records, dict):
+        records = [records]
+
     ret=[]
     for dictionary in records:
         for key in dictionary:
@@ -132,6 +140,53 @@ def format_records(records, exclude=[]):
         ret.append(dictionary)
     return ret
 
+
 def chunker(array, chunk_size):
     for i in range(0, len(array), chunk_size):
         yield array[i:i+chunk_size]
+
+
+def parse_datestring(collection_period):
+    """
+    Parse user provided historical_collection_period string into timedelta obj.
+
+    Parameters:
+    -----------
+    collection_period: string
+        Example: '1Y', '2Y'
+
+    Returns:
+    -----------
+    diff: datetime.timedelta
+        Example: '1Y' ---> datetime.timedelta(days = 365)
+        Example: '1Y' ---> datetime.timedelta(days = 365)
+    """
+
+    collection_period = collection_period.upper()
+    num = ''
+    char = ''
+    for c in collection_period:
+        if c.isdigit():
+            num+=c
+        else:
+            char+=c
+
+    try:
+        num = int(num)
+    except ValueError as e:
+        raise ImplementationError('''
+            Must include an integer in input string. Check
+            config/data_collection.historical_config
+        ''')
+
+    if char == 'Y':
+        return timedelta(days=num*365)
+    elif char == 'M':
+        return timedelta(days=num*30)
+    elif char == 'D':
+        return timedelta(days=num)
+    else:
+        raise ImplementationError('''
+            Must designate month/day/year as M/D/Y. Check
+            config/data_collection.historical_config
+        ''')

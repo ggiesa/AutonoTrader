@@ -5,6 +5,8 @@ from exchanges.binance import (
     BinanceData, BinanceOrders, check_binance_server_time_diff
 )
 
+
+
 class TestData:
 
     def test_ticker(self):

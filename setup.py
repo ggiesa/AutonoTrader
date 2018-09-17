@@ -2,10 +2,10 @@
 
 from utils.database import Database, get_symbols
 from utils import setup_utilities as su
-from utils.toolbox import progress_bar
+from utils.toolbox import progress_bar, parse_datestring
 from exchanges.binance import BinanceData
 from config.data_collection import historical_config, user_symbols
-from ingestion.data_collection import insert_hourly_candles
+from ingestion.data_collection import insert_historical_candles
 from datetime import datetime
 
 
@@ -56,15 +56,10 @@ def collect_historical_data():
     """Populate the candles table with historical data."""
 
     collection_period = historical_config['historical_collection_period']
-    collection_period = su.parse_historical_collection_period(collection_period)
-
     user_symbols = get_symbols()
-    startTime = datetime.utcnow() - collection_period
 
     print('Collecting historical data','\n','--------------------------')
-    insert_hourly_candles(
-        user_symbols, startTime=startTime, db='autonotrader', verbose=True
-        )
+    insert_historical_candles(user_symbols, collection_period)
 
 
 

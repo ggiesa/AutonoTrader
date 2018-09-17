@@ -16,12 +16,15 @@ from utils.database import Database, get_oldest_dates
 from exchanges.binance import BinanceData
 from exchanges.cryptocompare import CryptocompareData
 from errors.exceptions import DiscontinuousError
+from utils.toolbox import parse_datestring
+from time import sleep
 
 
+# TODO Avoid duplicates?
 # TODO Add support for selecting based on exchange
 def insert_hourly_candles(symbols, startTime=None, endTime=None,
-                          db='test', debug=False, verbose=False,
-                          avoid_duplicates=True, datasource=None):
+                          db='autonotrader', debug=False, verbose=False,
+                          datasource=None):
     """
     Get candles from the binance API, insert into the database.
         - If no startTime or endTime is provided, inserts the most recent
@@ -76,7 +79,12 @@ def insert_hourly_candles(symbols, startTime=None, endTime=None,
     elif endTime and not startTime:
         endTime = tb.DateConvert(endTime).datetime
 
+    # TODO generalize
+    if not datasource:
+        datasource = BinanceData()
+
     if startTime and endTime:
+
         daterange = pd.date_range(startTime, endTime, freq='1H')
 
         # Calculate total num of chunks and loop iterations for progress bar
@@ -97,26 +105,14 @@ def insert_hourly_candles(symbols, startTime=None, endTime=None,
             if total_chunks > 1:
                 sub_endTime+=timedelta(hours=1)
 
-            if avoid_duplicates:
-                oldest_dates = get_oldest_dates(symbols)
 
             for symbol in symbols:
 
-                if avoid_duplicates and oldest_dates[symbol]:
-                    if oldest_dates[symbol] < DateConvert(sub_startTime).datetime:
-                        continue
-                    elif oldest_dates[symbol] < DateConvert(sub_endTime).datetime:
-                        sub_endTime = oldest_dates[symbol]
+                # if datasource:
+                candles = datasource.candle(
+                    symbol, startTime = sub_startTime, endTime = sub_endTime
+                )
 
-                #TODO generalize
-                if datasource:
-                    candles = datasource.candle(
-                        symbol, startTime = sub_startTime, endTime = sub_endTime
-                    )
-                else:
-                    candles = BinanceData().candle(
-                        symbol, startTime = sub_startTime, endTime = sub_endTime
-                    )
                 to_insert = pd.concat([to_insert, candles])
 
                 iteration+=1
@@ -129,11 +125,12 @@ def insert_hourly_candles(symbols, startTime=None, endTime=None,
             chunk_num+=1
 
             # To avoid losing data, insert in chunks if df becomes large
-            if len(to_insert) >= 2000 and not debug:
+            if len(to_insert) >= 4000 and not debug:
 
                 if verbose:
                     progress_bar(
-                        iteration, total_iterations, 'Inserting into db...'
+                        iteration, total_iterations,
+                        'Inserting into db....................'
                     )
 
                 Database(db=db).insert(
@@ -146,13 +143,14 @@ def insert_hourly_candles(symbols, startTime=None, endTime=None,
             return to_insert
         else:
             Database(db=db).insert(
-                'candles', to_insert, auto_format=True, verbose=verbose
+                'candles', to_insert, auto_format=True, verbose=False
                 )
 
     else:
         to_insert = pd.DataFrame()
         for symbol in symbols:
-            candles = BinanceData().candle(
+
+            candles = datasource.candle(
                 symbol, startTime = startTime, endTime = endTime
             )
 
@@ -164,6 +162,66 @@ def insert_hourly_candles(symbols, startTime=None, endTime=None,
             Database(db=db).insert(
                 'candles', to_insert, auto_format=True, verbose=verbose
                 )
+
+
+def insert_historical_candles(symbols, datestring,
+                              min_date = None, verbose=True):
+    """
+    Insert <datestring> historical candles for a symbol(s) beyond the oldest
+    found candle in the database.
+
+    Example:
+        insert_historical_candles('BTCUSDT', '1M') will insert 1 month of
+        historical data beyond what is found in the database.
+
+    Parameters:
+    ---------------
+    symbols: string | list of strings
+        Symbols of the cryptos to insert data for. Example: ['BTCUSDT', 'ETHBTC']
+
+    datestring: string
+        String designating how much data to collect. Format: integer followed by
+        'D', 'M', or 'Y'.
+
+        Examples:
+        '10D' ---> 10 days
+        '5M' ---> 5 months
+        '1Y' ---> 1 year
+
+    debug: boolean
+        Setting to true will return the data that would have been inserted into
+        the database.
+
+    """
+
+    if isinstance(symbols, str):
+        symbols = [symbols]
+
+    # Convert datestring to timedelta object
+    dt = parse_datestring(datestring)
+
+    # Oldest dates from the DB as a dict, with None values if nothing's there
+    oldest_dates = get_oldest_dates(symbols)
+
+    for i, symbol in enumerate(symbols):
+        endTime = oldest_dates[symbol]
+
+        if endTime:
+            endTime = DateConvert(endTime).datetime
+        else:
+            endTime = datetime.utcnow()
+
+        startTime = endTime-dt
+
+        insert_hourly_candles(
+            symbol, endTime=endTime, startTime=startTime, verbose=verbose
+            )
+
+        if i != len(symbols)-1:
+            if verbose:
+                print('Sleeping...')
+            sleep(10)
+
 
 
 def insert_tickers():

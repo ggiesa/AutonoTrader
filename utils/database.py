@@ -102,16 +102,21 @@ class Database:
         '''
 
         sql = None
-        if ins is None:
-            return
-        elif isinstance(ins, pd.DataFrame):
+
+        if isinstance(ins, pd.DataFrame):
+            if ins.empty:
+                return
             ins = ins.to_dict('records')
+
+        if not ins:
+            return
+
+        if auto_format:
+            ins = format_records(ins)
 
         if isinstance(ins, list):
             if len(ins) == 1:
                 ins = ins[0]
-            elif auto_format:
-                ins = format_records(ins)
 
         num_chunks = len(ins)//1000
         if num_chunks and len(ins)%1000:
@@ -120,6 +125,7 @@ class Database:
         try:
             iteration=0
             with self.cursor as cursor:
+
                 if isinstance(ins, list):
 
                     # Parse dict keys into sql-formatted columns
