@@ -6,7 +6,6 @@ from exchanges.binance import (
 )
 
 
-
 class TestData:
 
     def test_ticker(self):
@@ -45,7 +44,29 @@ class TestData:
 
 
 class TestOrders:
-    pass
+    def test_buy(self):
+        order = BinanceOrders().buy_order('BTCUSDT', .001, test=True)
+        assert order == {}
+
+    def test_sell(self):
+        order = BinanceOrders().sell_order('BTCUSDT', .001, test=True)
+        assert order == {}
+
+    def test_account_balance(self):
+        assert BinanceOrders().account_balance()
+
+    def test_coin_balance(self):
+        assert BinanceOrders().coin_balance('XRP')
+
+    def test_account_status(self):
+        assert BinanceOrders().account_status()
+
+    def test_all_orders(self):
+        assert BinanceOrders().all_orders('XRPETH')
+
+    def test_trades(self):
+        assert BinanceOrders().trades('XRPETH')
+
 
 
 class TestBaseClass:
@@ -67,7 +88,8 @@ class TestBaseClass:
         except NotImplementedError:
             return True
 
+
 # Check server time sync -- takes too long
-# def test_server_time():
-#     diff = check_binance_server_time_diff(verbose=False, ret=True)
-#     assert np.abs(sum(diff)) < 1000, 'Binance server time dissagreement'
+def test_server_time():
+    diff = check_binance_server_time_diff(verbose=False, ret=True)
+    assert np.abs(sum(diff)) < 1000, 'Binance server time dissagreement'

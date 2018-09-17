@@ -30,13 +30,11 @@ user_symbols = {
     # Symbols to collect data for. Currently supported: Binance.
     #       Format:  <exchange> : [<from_symbol>/<to_symbol>]
     'binance' : [
-         'ETH/BTC',
          'EOS/BTC',
          'ONT/BTC',
          'BCD/BTC',
          'XLM/BTC',
          'ETC/BTC',
-         'XRP/BTC',
          'ADA/BTC',
          'BCC/BTC',
          'NANO/BTC',
@@ -44,7 +42,6 @@ user_symbols = {
          'NEO/BTC',
          'LTC/BTC',
          'VET/BTC',
-         'IOTA/BTC',
          'TRX/BTC',
          'DASH/BTC',
          'ICX/BTC',
@@ -63,8 +60,6 @@ user_symbols = {
          'GVT/BTC',
          'RCN/BTC',
          'BAT/BTC',
-         'WTC/BTC',
-         'XVG/BTC',
          'ENG/BTC',
          'GTO/BTC',
          'NULS/BTC',

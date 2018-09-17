@@ -173,8 +173,8 @@ class BinanceOrders(ExchangeOrders):
                                              side=SIDE_BUY,
                                              type=ORDER_TYPE_MARKET,
                                              quantity=quantity)
-        return True if order else False
-
+        # return True if order else False
+        return order
 
     def sell_order(self, symbol, quantity, test = True):
         """
@@ -203,7 +203,8 @@ class BinanceOrders(ExchangeOrders):
                                              side=SIDE_sell,
                                              type=ORDER_TYPE_MARKET,
                                              quantity=quantity)
-        return True if order else False
+        # return True if order else False
+        return order
 
 
     def account_balance(self):
