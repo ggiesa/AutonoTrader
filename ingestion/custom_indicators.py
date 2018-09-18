@@ -76,10 +76,3 @@ class AVG(CustomIndicator):
         a = self.candles.close + self.candles.open
         b = self.candles.high + self.candles.low
         return a+b/4
-
-class MA_48(CustomIndicator):
-    def get_timedelta():
-        return timedelta(hours=48)
-
-    def transform(self):
-        return self.candles.close.rolling(48).mean()

@@ -68,3 +68,4 @@ if __name__ == '__main__':
     populate_all_db_symbols()
     populate_custom_db_symbols()
     collect_historical_data()
+    

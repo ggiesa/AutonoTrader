@@ -112,6 +112,8 @@ class Database:
             return
 
         if auto_format:
+            if verbose:
+                print('Formatting input...')
             ins = format_records(ins)
 
         if isinstance(ins, list):
@@ -177,7 +179,7 @@ class Database:
 
 
     def execute(self, sql):
-        '''Return a pandas.DataFrame containing data a sql SELECT command.'''
+        '''Return a DataFrame containing data from a sql SELECT command.'''
 
         try:
             with self.cursor as cursor:
@@ -416,7 +418,7 @@ def get_symbols_and_pairs():
     return ret[['symbol','from_symbol','to_symbol']]
 
 
-def get_most_recent_dates(symbols, db='autonotrader'):
+def get_most_recent_dates(symbols=None, db='autonotrader'):
     """
     Get the most recent candle date for a given symbol or list of symbols in the
     database.
@@ -431,6 +433,8 @@ def get_most_recent_dates(symbols, db='autonotrader'):
     most_recent_dates: dict
         dict like {'<symbol>':<most_recent_date>}
     """
+    if not symbols:
+        symbols = get_symbols()
 
     if isinstance(symbols, str):
         symbols = [symbols]
@@ -448,7 +452,7 @@ def get_most_recent_dates(symbols, db='autonotrader'):
     return most_recent_dates
 
 
-def get_oldest_dates(symbols, db='autonotrader'):
+def get_oldest_dates(symbols=None, db='autonotrader'):
     """
     Get the earliest candle date for a given symbol or list of symbols in the
     database.
@@ -464,6 +468,9 @@ def get_oldest_dates(symbols, db='autonotrader'):
         dict like {'<symbol>':<earliest_date>}
     """
 
+    if not symbols:
+        symbols = get_symbols()
+
     if isinstance(symbols, str):
         symbols = [symbols]
 
@@ -478,3 +485,11 @@ def get_oldest_dates(symbols, db='autonotrader'):
         oldest_dates[symbol] = date
 
     return oldest_dates
+
+
+def add_column(table, column, datatype, db=None):
+    sql = f'ALTER TABLE {table} ADD {column} {datatype};'
+    if db:
+        Database(db=db).execute(sql)
+    else:
+        Database().execute(sql)

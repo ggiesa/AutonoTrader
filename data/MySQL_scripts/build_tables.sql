@@ -17,6 +17,24 @@ CREATE TABLE `candles` (
    UNIQUE KEY `stamp` (`open_date`,`symbol`)
 );
 
+CREATE TABLE `engineered_data` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   `symbol` varchar(20),
+   `open_date` datetime,
+   `open` float(20,9),
+   `high` float(20,9),
+   `low` float(20,9),
+   `close` float(20,9),
+   `volume` float(20,9),
+   `close_date` datetime,
+   `quote_asset_volume` float(20,9),
+   `number_of_trades` int(11),
+   `taker_buy_base_asset_volume` float(20,9),
+   `taker_buy_quote_asset_volume` float(20,9),
+   PRIMARY KEY (`id`),
+   UNIQUE KEY `stamp` (`open_date`,`symbol`)
+);
+
 create table `ticker` (
   `date` datetime,
   `symbol` varchar(20),

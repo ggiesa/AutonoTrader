@@ -55,7 +55,7 @@ class TestRawCandles:
     def test_from_date(self):
 
         symbol = get_symbols()[0]
-        date = get_most_recent_dates(symbol)[symbol]
+        date = get_most_recent_dates(symbols=symbol)[symbol]
         from_date = date - timedelta(hours=10)
 
         candles = Candles().get_raw(
