@@ -252,7 +252,8 @@ class Candles(AssembleSQL):
 
     def get_raw(self, symbol = None, from_date = None, to_date = None):
         """
-        Get raw candles from the database.
+        Get raw candles from the database. With no parameters, returns entire
+        table.
 
         Parameters:
         -----------
@@ -273,12 +274,12 @@ class Candles(AssembleSQL):
         if from_date:
             from_date = DateConvert(from_date).date
             conditions.append(dict(column = 'open_date',
-                                   operator = '>',
+                                   operator = '>=',
                                    value = from_date))
         if to_date:
             to_date = DateConvert(to_date).date
             conditions.append(dict(column = 'open_date',
-                                   operator = '<',
+                                   operator = '<=',
                                    value = to_date))
         if symbol:
             conditions.append(dict(column = 'symbol',
@@ -314,12 +315,12 @@ class Candles(AssembleSQL):
         if from_date:
             from_date = DateConvert(from_date).date
             conditions.append(dict(column = 'open_date',
-                                   operator = '>',
+                                   operator = '>=',
                                    value = from_date))
         if to_date:
             to_date = DateConvert(to_date).date
             conditions.append(dict(column = 'open_date',
-                                   operator = '<',
+                                   operator = '<=',
                                    value = to_date))
         if symbol:
             conditions.append(dict(column = 'symbol',
@@ -334,8 +335,8 @@ class Candles(AssembleSQL):
 
 class Trades(AssembleSQL):
 
-    def get_trades(self, symbol = None, from_date = None,
-                   to_date = None,  type = None):
+    def get_trades(self, symbol = None,   from_date = None,
+                         to_date = None,  type = None):
 
         """
         Get bot trades from the database.

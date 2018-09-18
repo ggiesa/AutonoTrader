@@ -42,7 +42,6 @@ class TestData:
         assert not all_tickers.empty
 
 
-
 class TestOrders:
     def test_buy(self):
         order = BinanceOrders().buy_order('BTCUSDT', .001, test=True)
@@ -66,7 +65,6 @@ class TestOrders:
 
     def test_trades(self):
         assert BinanceOrders().trades('XRPETH')
-
 
 
 class TestBaseClass:

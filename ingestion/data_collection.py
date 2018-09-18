@@ -380,8 +380,8 @@ def engineer_features(candles, symbol, dropnull = True):
 
     # The 48-hour moving avg
     candles['moving_avg_48'] = candles.close.rolling(48).mean()
-    candles['moving_std_1W'] = candles.close.rolling(168).std()
     candles['moving_std_72H'] = candles.close.rolling(72).std()
+    candles['moving_std_1W'] = candles.close.rolling(168).std()
 
     # Find last bases
     candles = add_last_base(candles)

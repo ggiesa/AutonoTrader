@@ -1,7 +1,10 @@
 from utils.database import (
-    Database, get_symbols, get_pairs, get_symbols_and_pairs
+    Database, get_symbols, get_pairs, get_symbols_and_pairs, Candles,
+    get_most_recent_dates
     )
+from utils.toolbox import DateConvert
 from pymysql.err import OperationalError
+from datetime import datetime, timedelta
 
 class TestDatabase:
 
@@ -44,3 +47,27 @@ def test_get_most_recent_dates():
 
 def test_get_oldest_dates():
     pass
+
+
+
+class TestRawCandles:
+
+    def test_from_date(self):
+
+        symbol = get_symbols()[0]
+        date = get_most_recent_dates(symbol)[symbol]
+        from_date = date - timedelta(hours=10)
+
+        candles = Candles().get_raw(
+            symbol = symbol,
+            from_date = from_date
+            )
+
+        date = DateConvert(date).datetime
+        most_recent_date = DateConvert(candles.open_date.iloc[0]).datetime
+
+        from_date = DateConvert(from_date).datetime
+        oldest_date = DateConvert(candles.open_date.iloc[-1]).datetime
+
+        assert date == most_recent_date
+        assert from_date == oldest_date
