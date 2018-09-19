@@ -11,18 +11,17 @@ from copy import copy
 
 # Custom
 from utils import toolbox as tb
-from utils.toolbox import DateConvert, chunker, progress_bar
-from utils.database import Database, get_oldest_dates
+from utils.toolbox import DateConvert, chunker, progress_bar, parse_datestring
+from utils.database import Database, get_oldest_dates, add_column, get_symbols, get_max_open_date
 from exchanges.binance import BinanceData
 from exchanges.cryptocompare import CryptocompareData
 from errors.exceptions import DiscontinuousError
-from utils.toolbox import parse_datestring
 from time import sleep
 
 
-def insert_hourly_candles(symbols, startTime=None, endTime=None,
-                          db='autonotrader', debug=False, verbose=False,
-                          datasource=None):
+def insert_hourly_candles(symbols, startTime=None,    endTime=None,
+                                   db='autonotrader', debug=False,
+                                   verbose=False,     datasource=None):
     """
     Get candles from the binance API, insert into the database.
         - If no startTime or endTime is provided, inserts the most recent
@@ -162,6 +161,23 @@ def insert_hourly_candles(symbols, startTime=None, endTime=None,
                 )
 
 
+def update_candles(debug=False):
+    """
+    Insert candles from the most recent open_date in the database to
+    the current time.
+    """
+
+    symbols = get_symbols()
+    startTime = get_max_open_date()
+
+    if debug:
+        return insert_hourly_candles(symbols, startTime=startTime, debug=True)
+    else:
+        insert_hourly_candles(
+            symbols, startTime=startTime, debug=False, verbose=True
+        )
+
+
 def insert_historical_candles(symbols, datestring,
                               min_date = None, verbose=True):
     """
@@ -223,6 +239,27 @@ def insert_historical_candles(symbols, datestring,
 
 def engineer_data(from_date = None, verbose=False):
 
+    def interpolate_nulls(candles):
+        candles['interpolated'] = False
+        null_inds = pd.isnull(candles).any(1).nonzero()[0]
+        if null_inds.size:
+            candles = candles.fillna(method='ffill')
+            candles.interpolated.iloc[null_inds] = True
+
+            # If nulls still in df, drop and check for continuity
+            if pd.isnull(candles).any().any():
+                candles = candles.dropna()
+                continuous = pd.date_range(start=candles.open_date.min(),
+                                           end=candles.open_date.max(),
+                                           freq = '1H')
+
+                if not (continuous == candles.open_date).all():
+                    raise DiscontinuousError(
+                        '''DataFrame doesn't form a continuous date
+                            sequence after interpolation''' )
+
+        return candles
+
     def indicators():
         for indicator in CustomIndicator.__subclasses__():
             yield indicator
@@ -251,6 +288,7 @@ def engineer_data(from_date = None, verbose=False):
 
     # Get raw candles for transformation
     candles = Candles().get_raw(from_date = from_date)
+    candles = interpolate_nulls(candles)
     candles.index = candles.symbol
     symbols = get_symbols()
     num_symbols = len(symbols)
@@ -332,10 +370,8 @@ def insert_engineered_data(verbose = True):
     Database().insert('engineered_data', ins, verbose=verbose, auto_format=True)
 
 
-def insert_tickers():
-    pass
 
-
+# TODO test
 def get_ticker(from_symbol, to_symbol, insert = False):
     '''Get most recent price for currency pair from Binance API.'''
 
@@ -358,7 +394,7 @@ def get_ticker(from_symbol, to_symbol, insert = False):
     else:
         return df
 
-
+# TODO test
 def get_all_tickers(insert = False):
     '''Get current ticker price for all currency pairs in DB. Return as
         DataFrame or insert into DB.'''
@@ -396,7 +432,7 @@ def get_all_tickers(insert = False):
     else:
         return df
 
-
+# TODO Add base feature to custom indicators
 def engineer_features(candles, symbol, dropnull = True):
     '''Calculate moving averages and other derived features.'''
 
@@ -583,7 +619,7 @@ def insert_all_engineered_features(verbose=True):
             print(f'Failed with {symbol}')
             raise err
 
-
+# TODO Test
 def repair_data(symbol = 'all', verbose=True):
     '''Iterate though candles, find missing dates, replace with Binance data.'''
 
@@ -594,8 +630,7 @@ def repair_data(symbol = 'all', verbose=True):
 
     # Get data for symbol
     if symbol == 'all':
-        pairs = get_pairs()
-        symbols = [row[1].from_symbol+row[1].to_symbol for row in pairs.iterrows()]
+        symbols = get_symbols()
     else:
         symbols = [symbol]
 
@@ -662,11 +697,11 @@ def repair_data(symbol = 'all', verbose=True):
             endTime = tb.DateConvert(max(chunk) + timedelta(hours=10)).date
 
             limit = len(pd.date_range(startTime, endTime, freq=TIME_RES))
-            startTime = to_binance_ts(startTime)
-            endTime = to_binance_ts(endTime)
 
-            add += Binance().candle(symbol = symbol, limit = limit,
-                                    startTime = startTime, endTime = endTime)
+            add += BinanceData().candle(
+                symbol = symbol,       limit = limit,
+                startTime = startTime, endTime = endTime
+                ).to_dict('records')
 
         cols =  ['open_date', 'open', 'high', 'low', 'close', 'volume',
                 'close_date', 'quote_asset_volume', 'number_of_trades',
@@ -695,27 +730,14 @@ def repair_data(symbol = 'all', verbose=True):
 
         if verbose:
             print(f'Binance call returned {success} missing dates.')
-
-
-        missing = missing.to_dict(orient='records')
-        for t in missing:
-            for key in t:
-                try:
-                    if not t[key]:
-                        t[key] = 'NULL'
-                    else:
-                        t[key] = pd.to_numeric(t[key])
-                except:
-                    t[key] = \
-                        f"'{t[key]}'" if isinstance(t[key], str) else t[key]
-
-        if verbose:
             print(f'Inserting {len(missing)} items into db.')
             print()
 
+        # return add, missing, endTime, startTime
+
         Database().insert('candles', missing)
 
-
+# TODO test
 def check_data_continuity(symbol='all', table='candles', verbose=True):
     '''Check that candles form a fully continuous date range.'''
 
@@ -749,7 +771,7 @@ def check_data_continuity(symbol='all', table='candles', verbose=True):
         else:
             print(f'No discontinuous dates found in {symbol}')
 
-
+# TODO test
 def clean_candles(symbol='all', table='candles', verbose=True):
     '''Iterate through candles, deleting ones that don't start on the hour.'''
 

@@ -133,7 +133,10 @@ def format_records(records, exclude=[]):
         for key in dictionary:
             if key not in exclude:
                 try:
-                    dictionary[key] = pd.to_numeric(dictionary[key])
+                    if not dictionary[key] and dictionary[key] != 0:
+                        dictionary[key] = 'NULL'
+                    else:
+                        dictionary[key] = pd.to_numeric(dictionary[key])
                 except:
                     if isinstance(dictionary[key], str):
                         dictionary[key] = f"'{dictionary[key]}'"

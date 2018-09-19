@@ -140,7 +140,6 @@ class BinanceData(ExchangeData):
         return s
 
 
-# TODO Test, complete documentation.
 class BinanceOrders(ExchangeOrders):
     '''Handle order calls to binance.'''
     def __init__(self, config = config.binance):
@@ -175,6 +174,7 @@ class BinanceOrders(ExchangeOrders):
                                              quantity=quantity)
         # return True if order else False
         return order
+
 
     def sell_order(self, symbol, quantity, test = True):
         """

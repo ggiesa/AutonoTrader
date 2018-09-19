@@ -5,7 +5,7 @@ import pandas as pd
 from exchanges.binance import BinanceData
 from exchanges.cryptocompare import CryptocompareData
 from utils.toolbox import format_records, DateConvert, chunker
-from utils.database import Database, get_symbols
+from utils.database import Database, get_symbols, get_max_open_date
 from datetime import datetime, timedelta
 
 
@@ -172,9 +172,11 @@ class TestCandles:
         complete_range = list(map(lambda x: DateConvert(x).date, complete_range))
         assert np.isin(complete_range, dates).all()
 
+# add, missing, startTime, endTime = dc.repair_data()
 
 
-#
+# dc.repair_data()
+
 # class TestCandlesCC:
 #     """Test candles functionality with cryptocompare datasource."""
 #

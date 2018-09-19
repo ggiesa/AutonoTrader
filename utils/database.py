@@ -62,7 +62,7 @@ class Database:
             raise err
 
 
-    def insert(self, table, ins, auto_format=False, verbose=False):
+    def insert(self, table, ins, auto_format=True, verbose=False):
         '''
         Insert a new row or set of rows into a table.
 
@@ -493,3 +493,8 @@ def add_column(table, column, datatype, db=None):
         Database(db=db).execute(sql)
     else:
         Database().execute(sql)
+
+def get_max_open_date(table='candles', db='autonotrader'):
+    sql = f'SELECT MAX(open_date) FROM {table};'
+    date = Database(db=db).execute(sql)['MAX(open_date)'].iloc[0]
+    return DateConvert(date).datetime
