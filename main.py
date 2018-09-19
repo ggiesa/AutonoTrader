@@ -4,7 +4,7 @@ from ingestion.manager import Tasks
 
 # Set up logging
 logging.basicConfig(filename = './data/logs/main.log',
-                    level = logging.DEBUG,
+                    level = logging.WARNING,
                     format='%(asctime)s %(levelname)s %(name)s %(message)s')
 logger = logging.getLogger(__name__)
 

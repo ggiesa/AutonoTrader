@@ -20,7 +20,6 @@ import pickle
 
 # Custom
 from utils import toolbox as tb
-from ingestion import data_collection as dc
 from errors.exceptions import DiscontinuousError, ImplementationError
 
 

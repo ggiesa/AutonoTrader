@@ -9,12 +9,13 @@ import logging
 from utils import toolbox as tb
 from exchanges.binance import BinanceData
 from ingestion import data_collection as dc
+from ingestion.live import get_all_candles,
 from bot import backtest, base
 
 # Set up logging
 logging.basicConfig(
     filename = './data/logs/tasks.log',
-    level = logging.DEBUG,
+    level = logging.WARNING,
     format='%(asctime)s %(levelname)s %(name)s %(message)s'
     )
 logger = logging.getLogger(__name__)

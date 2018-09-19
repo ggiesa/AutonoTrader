@@ -1,12 +1,10 @@
 """Setup initial MySQL schema, populate with historical data."""
 
-from utils.database import Database, get_symbols
-from utils import setup_utilities as su
-from utils.toolbox import progress_bar, parse_datestring
-from exchanges.binance import BinanceData
 from config.data_collection import historical_config, user_symbols
-from ingestion.data_collection import insert_historical_candles
-from datetime import datetime
+from ingestion.historical import insert_historical_candles
+from utils.database import Database, get_symbols
+from exchanges.binance import BinanceData
+from utils import setup_utilities as su
 
 
 def setup_databases():
@@ -68,4 +66,3 @@ if __name__ == '__main__':
     populate_all_db_symbols()
     populate_custom_db_symbols()
     collect_historical_data()
-    

@@ -1,22 +1,13 @@
-'''Perform data collection tasks from external sources.'''
+"""Core data ingestion functionality."""
 
-# Basics
 import pandas as pd
-import numpy as np
-from pathlib import Path
-import time
 from datetime import datetime, timedelta
-from collections import OrderedDict
-from copy import copy
-
-# Custom
-from utils import toolbox as tb
-from utils.toolbox import DateConvert, chunker, progress_bar, parse_datestring
-from utils.database import Database, get_oldest_dates, add_column, get_symbols, get_max_open_date
-from exchanges.binance import BinanceData
-from exchanges.cryptocompare import CryptocompareData
 from errors.exceptions import DiscontinuousError
-from time import sleep
+
+from utils import toolbox as tb
+from exchanges.binance import BinanceData
+from utils.database import Database, Candles, get_symbols
+from ingestion.custom_indicators import CustomIndicator
 
 
 def insert_hourly_candles(symbols, startTime=None,    endTime=None,
@@ -81,7 +72,6 @@ def insert_hourly_candles(symbols, startTime=None,    endTime=None,
         datasource = BinanceData()
 
     if startTime and endTime:
-
         daterange = pd.date_range(startTime, endTime, freq='1H')
 
         # Calculate total num of chunks and loop iterations for progress bar
@@ -95,26 +85,24 @@ def insert_hourly_candles(symbols, startTime=None,    endTime=None,
         to_insert = pd.DataFrame()
 
         # API limited to 500 candles, so split date range into chunks if needed
-        for subrange in chunker(daterange, 500):
+        for subrange in tb.chunker(daterange, 500):
             sub_startTime = min(subrange)
             sub_endTime = max(subrange)
 
             if total_chunks > 1:
                 sub_endTime+=timedelta(hours=1)
 
-
             for symbol in symbols:
 
                 # if datasource:
                 candles = datasource.candle(
-                    symbol, startTime = sub_startTime, endTime = sub_endTime
-                )
-
+                    symbol, startTime=sub_startTime, endTime=sub_endTime
+                    )
                 to_insert = pd.concat([to_insert, candles])
 
                 iteration+=1
                 if verbose:
-                    progress_bar(
+                    tb.progress_bar(
                         iteration, total_iterations,
                         f'Getting {symbol}: chunk {chunk_num} of {total_chunks}'
                     )
@@ -123,18 +111,15 @@ def insert_hourly_candles(symbols, startTime=None,    endTime=None,
 
             # To avoid losing data, insert in chunks if df becomes large
             if len(to_insert) >= 4000 and not debug:
-
                 if verbose:
-                    progress_bar(
+                    tb.progress_bar(
                         iteration, total_iterations,
                         'Inserting into db....................'
                     )
-
                 Database(db=db).insert(
                     'candles', to_insert, auto_format=True, verbose=False
                     )
                 to_insert = pd.DataFrame()
-
 
         if debug:
             return to_insert
@@ -146,13 +131,10 @@ def insert_hourly_candles(symbols, startTime=None,    endTime=None,
     else:
         to_insert = pd.DataFrame()
         for symbol in symbols:
-
             candles = datasource.candle(
                 symbol, startTime = startTime, endTime = endTime
             )
-
             to_insert = pd.concat([to_insert, candles])
-
         if debug:
             return to_insert
         else:
@@ -160,81 +142,6 @@ def insert_hourly_candles(symbols, startTime=None,    endTime=None,
                 'candles', to_insert, auto_format=True, verbose=verbose
                 )
 
-
-def update_candles(debug=False):
-    """
-    Insert candles from the most recent open_date in the database to
-    the current time.
-    """
-
-    symbols = get_symbols()
-    startTime = get_max_open_date()
-
-    if debug:
-        return insert_hourly_candles(symbols, startTime=startTime, debug=True)
-    else:
-        insert_hourly_candles(
-            symbols, startTime=startTime, debug=False, verbose=True
-        )
-
-
-def insert_historical_candles(symbols, datestring,
-                              min_date = None, verbose=True):
-    """
-    Insert <datestring> historical candles for a symbol(s) beyond the oldest
-    found candle in the database.
-
-    Example:
-        insert_historical_candles('BTCUSDT', '1M') will insert 1 month of
-        historical data beyond what is found in the database.
-
-    Parameters:
-    ---------------
-    symbols: string | list of strings
-        Symbols of the cryptos to insert data for. Example: ['BTCUSDT', 'ETHBTC']
-
-    datestring: string
-        String designating how much data to collect. Format: integer followed by
-        'D', 'M', or 'Y'.
-
-        Examples:
-        '10D' ---> 10 days
-        '5M' ---> 5 months
-        '1Y' ---> 1 year
-
-    debug: boolean
-        Setting to true will return the data that would have been inserted into
-        the database.
-
-    """
-
-    if isinstance(symbols, str):
-        symbols = [symbols]
-
-    # Convert datestring to timedelta object
-    dt = parse_datestring(datestring)
-
-    # Oldest dates from the DB as a dict, with None values if nothing's there
-    oldest_dates = get_oldest_dates(symbols=symbols)
-
-    for i, symbol in enumerate(symbols):
-        endTime = oldest_dates[symbol]
-
-        if endTime:
-            endTime = DateConvert(endTime).datetime
-        else:
-            endTime = datetime.utcnow()
-
-        startTime = endTime-dt
-
-        insert_hourly_candles(
-            symbol, endTime=endTime, startTime=startTime, verbose=verbose
-            )
-
-        if i != len(symbols)-1:
-            if verbose:
-                print('Sleeping...')
-            sleep(10)
 
 
 def engineer_data(from_date = None, verbose=False):
@@ -316,7 +223,7 @@ def engineer_data(from_date = None, verbose=False):
 
             count+=1
             if verbose:
-                progress_bar(
+                tb.progress_bar(
                     count, total_iterations,
                     f'Calculating {indicator_name} for {symbol}'
                 )
@@ -332,294 +239,6 @@ def engineer_data(from_date = None, verbose=False):
     return ins.dropna()
 
 
-def insert_engineered_data(verbose = True):
-
-    verbose=True
-
-    # Get indicators from subclasses
-    indicators = list(CustomIndicator.__subclasses__())
-
-    # Get columns for comparison to incoming indicators
-    sql = 'SHOW COLUMNS IN engineered_data;'
-    candle_cols = list(Database().execute(sql).Field)
-
-    for indicator in indicators:
-        if indicator.__name__ not in candle_cols:
-            add_column('engineered_data', indicator.__name__, 'float(20,9)')
-
-    # Get starting date for insert
-    sql = 'SELECT MAX(open_date) FROM engineered_data;'
-    from_date = Database().execute(sql)['MAX(open_date)'].iloc[0]
-
-    # If there's nothing in the table, populate the entire thing
-    if not from_date:
-        sql = 'SELECT MIN(open_date) FROM candles;'
-        from_date = Database().execute(sql)['MIN(open_date)'].iloc[0]
-
-    ins = engineer_data(from_date=from_date, verbose=verbose)
-
-    # Convert to sql-friendly dates
-    convert_to_sql = lambda x: DateConvert(x).date
-    ins.open_date = ins.open_date.map(convert_to_sql)
-    ins.close_date = ins.close_date.map(convert_to_sql)
-
-
-    if verbose:
-        print('Inserting engineered data into database...')
-
-    Database().insert('engineered_data', ins, verbose=verbose, auto_format=True)
-
-
-
-# TODO test
-def get_ticker(from_symbol, to_symbol, insert = False):
-    '''Get most recent price for currency pair from Binance API.'''
-
-    # Call Binance API
-    ticker = Binance().ticker(symbol = from_symbol+to_symbol)
-    date = tb.DateConvert(datetime.utcnow()).date
-
-    df = pd.DataFrame(ticker, columns = ['symbol', 'price'], index = [0])
-    df['date'] = date
-    df = df[['date', 'symbol', 'price']]
-    df.price = pd.to_numeric(df.price)
-
-    # Insert into MySQL server
-    if insert:
-        t = OrderedDict(pd.Series(df.T[0]).to_dict())
-        for key in t:
-            t[key] = f"'{t[key]}'" if isinstance(t[key], str) else t[key]
-
-        Database().insert('ticker', t)
-    else:
-        return df
-
-# TODO test
-def get_all_tickers(insert = False):
-    '''Get current ticker price for all currency pairs in DB. Return as
-        DataFrame or insert into DB.'''
-
-    # Get symbols and ticker data
-    pairs = get_pairs()
-    tickers = Binance().all_tickers()
-    symbols = [row[1].from_symbol+row[1].to_symbol for row in pairs.iterrows()]
-    date = tb.DateConvert(datetime.utcnow()).date
-
-    # Filter tickers
-    temp = []
-    for ticker in tickers:
-        if ticker['symbol'] in symbols:
-            temp.append(ticker)
-    tickers = temp
-
-    df = pd.DataFrame(tickers, index = range(len(tickers)))
-    df['date'] = date
-    df = df[['date', 'symbol', 'price']]
-
-    if insert:
-
-        df.date = df.date.astype(str)
-        df.symbol = df.symbol.astype(str)
-        df.price = pd.to_numeric(df.price)
-        df = df.to_dict(orient='records')
-
-        for i, ticker in enumerate(df):
-            for key in ticker:
-                if isinstance(ticker[key], str):
-                    ticker[key] = f"'{ticker[key]}'"
-
-        Database().insert('ticker', df)
-    else:
-        return df
-
-# TODO Add base feature to custom indicators
-def engineer_features(candles, symbol, dropnull = True):
-    '''Calculate moving averages and other derived features.'''
-
-    assert len(candles) > 366, 'Length of candles must be greater than 366 ' \
-                                + 'in order to take moving averages.'
-    # Mean normalization
-    def scale(col):
-        ret  = (col - col.mean())/(col.max()-col.min())
-        return ret
-
-    # Find slope of an array
-    def slope(narray):
-        coefs = np.polyfit(range(len(narray)), narray, 1)
-        return coefs[0] # Slope
-
-    # Try converting columns to numerical
-    def convert_to_numerical(candles):
-        for col in candles:
-            if col not in ['open_date', 'close_date']:
-                try:
-                    candles[col] = pd.to_numeric(candles[col])
-                except:
-                    continue
-        return candles
-
-    def add_last_base(candles):
-        # Get bases from db
-        sql = "select * from bases where symbol = '{}' and type = 'base';" \
-                .format(symbol)
-        bases = Database().execute(sql)
-        candles = candles[candles.open_date > bases.date.min()].copy()
-
-        last_base = []
-        last_base_date = []
-        for row in candles.iterrows():
-            b = bases[bases.date < row[1].open_date].copy()
-            b['difference'] = bases.date - row[1].open_date
-            last = b[b.difference == max(b.difference)]
-            last_base_date.append(tb.DateConvert(last.date.values[0]).datetime)
-            last_base.append(last.price.values[0])
-
-        candles['last_base'] = last_base
-        candles['last_base_date'] = last_base_date
-        return candles
-
-    def interpolate_nulls(candles):
-        candles['interpolated'] = False
-        null_inds = pd.isnull(candles).any(1).nonzero()[0]
-        if null_inds.size:
-            candles = candles.fillna(method='ffill')
-            candles.interpolated.iloc[null_inds] = True
-
-            # If nulls still in df, drop and check for continuity
-            if pd.isnull(candles).any().any():
-                candles = candles.dropna()
-                continuous = pd.date_range(start=candles.open_date.min(),
-                                           end=candles.open_date.max(),
-                                           freq = '1H')
-
-                if not (continuous == candles.open_date).all():
-                    raise DiscontinuousError(
-                        '''DataFrame doesn't form a continuous date
-                            sequence after interpolation''' )
-
-        return candles
-
-    # Ensure correct ordering
-    candles.index = candles.open_date
-    candles = candles.sort_index()
-    candles = candles.reset_index(drop=True)
-
-    candles = convert_to_numerical(copy(candles))
-    candles = interpolate_nulls(candles)
-
-    # 4-hour tangent line
-    df = candles[['open', 'close', 'high', 'low']].copy()
-    df['avg'] = (df.high + df.low + df.open + df.close)/4
-    trend_4h = df.avg.rolling(4).apply(slope, raw=True)
-
-    # Trends of various moving windows
-    candles['trend_4h'] = scale(trend_4h)
-
-    # Gadients for each trend (the change in the slope)
-    candles['trend_4h_grad'] = np.gradient(candles['trend_4h'])
-
-    # The moving 2 week standard deviation of each trend
-    candles['trend_4h_2W_STD'] = candles.trend_4h.rolling(366).std()
-
-    # The 48-hour moving avg
-    candles['moving_avg_48'] = candles.close.rolling(48).mean()
-    candles['moving_std_72H'] = candles.close.rolling(72).std()
-    candles['moving_std_1W'] = candles.close.rolling(168).std()
-
-    # Find last bases
-    candles = add_last_base(candles)
-    candles = candles.dropna() if dropnull else candles
-
-    return None if candles.empty else candles
-
-
-def insert_all_engineered_features(verbose=True):
-    '''Update the engineered_data table with most recent candles.'''
-
-    # The number of rows needed to calculate all moving averages
-    padding = 50
-    M_AVG_PARAM = 366 + padding
-
-    # Get list of symbols
-    pairs = get_pairs()
-    symbols = [row[1].from_symbol+row[1].to_symbol for row in pairs.iterrows()]
-
-    if verbose:
-        print('Engineering Features for...')
-    for symbol in symbols:
-        try:
-            if verbose:
-                print(symbol)
-
-            # Find most recent engineered candle
-            sql = f"select * from engineered_data where symbol ='{symbol}' " + \
-                    "order by open_date desc limit 1;"
-            e_candle = Database().execute(sql)
-
-            if not e_candle.empty:
-                mre_candle = e_candle.open_date.values[0]
-                mre_candle = tb.DateConvert(mre_candle).datetime
-                offset = timedelta(hours=M_AVG_PARAM)
-                min_date = tb.DateConvert(mre_candle - offset).date
-
-                # Check to see if engineered_data is up to date
-                sql = "select max(open_date) from candles where " + \
-                        f"symbol = '{symbol}';"
-                max_candle = Database().execute(sql)
-                max_candle = max_candle['max(open_date)'][0]
-                if max_candle == mre_candle:
-                    if verbose:
-                        print(f'Engineered data for {symbol} is up to date')
-                    continue
-
-                # Select appropriate range of candles for calculations
-                sql = f"select * from candles where symbol = " + \
-                        f"'{symbol}' and open_date >= '{min_date}';"
-
-            else:
-                # If there's nothing in engineered_data, select all
-                sql = f"select * from candles where symbol ='{symbol}';"
-
-            candles = Database().execute(sql)
-            candles = engineer_features(candles, symbol)
-
-            if not e_candle.empty:
-                candles = candles[candles.open_date > mre_candle]
-                min_insert_date = candles.open_date.min()
-                min_insert_date = tb.DateConvert(min_insert_date).datetime
-
-                assert min_insert_date == mre_candle + timedelta(hours=1), \
-                    "Dates being inserted don't form a continuous range " \
-                    "with existing data."
-
-            insert = []
-            scandles = candles.to_dict(orient='records')
-            for t in scandles:
-                for key in t:
-                    try:
-                        if np.isnan(t[key]):
-                            t[key] = 'NULL'
-                        else:
-                            t[key] = pd.to_numeric(t[key])
-                    except:
-                        try:
-                            t[key] = tb.DateConvert(t[key]).date
-                        except:
-                            pass
-                    if isinstance(t[key], str) and t[key] != 'NULL':
-                        t[key] = f"'{t[key]}'"
-
-                insert.append(t)
-            if verbose:
-                rows = len(insert)
-                print(f'Inserting {rows} rows for {symbol}')
-            Database().insert('engineered_data', insert)
-
-        except Exception as err:
-            print(f'Failed with {symbol}')
-            raise err
-
-# TODO Test
 def repair_data(symbol = 'all', verbose=True):
     '''Iterate though candles, find missing dates, replace with Binance data.'''
 

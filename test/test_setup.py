@@ -2,7 +2,6 @@ import setup
 from utils import setup_utilities as su
 from utils.database import Database
 from errors.exceptions import ImplementationError
-from config.data_collection import user_symbols
 from datetime import timedelta
 from errors.exceptions import ImplementationError
 

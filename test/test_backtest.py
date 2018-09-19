@@ -9,6 +9,7 @@ from unittest import TestCase
 import toolbox as tb
 from ingestion import data_collection as dc
 from importlib import reload
+from utils.database import get_symbols_and_pairs, Database
 
 
 class JustBTC(base.Backtest):
@@ -17,7 +18,7 @@ class JustBTC(base.Backtest):
 
     def get_data(self):
         sql = "SELECT * FROM engineered_data where symbol = 'BTCUSDT'"
-        return tb.Database().read(sql)
+        return Database().read(sql)
 
     def get_symbols(self):
         return {'symbol':'BTCUSDT',
@@ -45,7 +46,7 @@ class JustADA(base.Backtest):
 
     def get_data(self):
         sql = "SELECT * FROM engineered_data WHERE symbol = 'ADABTC'"
-        return tb.Database().read(sql)
+        return Database().read(sql)
 
     def get_symbols(self):
         return {'symbol':'ADABTC',
@@ -73,10 +74,10 @@ class BuySell(base.Backtest):
 
     def get_data(self):
         sql = "SELECT * FROM engineered_data ORDER BY open_date DESC LIMIT 1000"
-        return tb.Database().read(sql)
+        return Database().read(sql)
 
     def get_symbols(self):
-        return dc.get_symbols_and_pairs(as_df=True)
+        return get_symbols_and_pairs(as_df=True)
 
     def initialize_portfolio(self):
         purse = {'USDT':1000, 'BTC':1.5}
@@ -106,10 +107,10 @@ class TestBot10(base.Backtest):
             print('Acquiring data')
         sql = "SELECT * FROM engineered_data order by open_date desc limit 10000;"
         # sql = "SELECT * FROM engineered_data;"
-        return tb.Database().read(sql)
+        return Database().read(sql)
 
     def get_symbols(self):
-        return dc.get_symbols_and_pairs(as_df=True)
+        return get_symbols_and_pairs(as_df=True)
 
     def initialize_portfolio(self):
         purse = {'USDT':1000, 'BTC':1.5}
@@ -138,10 +139,10 @@ class BuySell(base.Backtest):
 
     def get_data(self):
         sql = "SELECT * FROM engineered_data ORDER BY open_date DESC LIMIT 1000"
-        return tb.Database().read(sql)
+        return Database().read(sql)
 
     def get_symbols(self):
-        return dc.get_symbols_and_pairs(as_df=True)
+        return get_symbols_and_pairs(as_df=True)
 
     def initialize_portfolio(self):
         purse = {'USDT':1000, 'BTC':1.5}
@@ -203,7 +204,7 @@ def test_number_of_trades(bot):
     total_buys = len(bot.trade_manager.all_buys)
     assert total_resolved + total_unresolved == total_buys
 
-    
+
 class TestBacktest(unittest.TestCase):
     def setUp(self):
         self.tb1 = JustADA() # Symbol 1
