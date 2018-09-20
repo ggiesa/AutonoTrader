@@ -6,10 +6,10 @@ from errors.exceptions import DiscontinuousError
 
 from utils import toolbox as tb
 from exchanges.binance import BinanceData
-from utils.database import Database, Candles, get_symbols
+from utils.database import Database, Candles, get_symbols, get_max_open_date
 from ingestion.custom_indicators import CustomIndicator
 
-
+# TODO break into live and historical components
 def insert_hourly_candles(symbols, startTime=None,    endTime=None,
                                    db='autonotrader', debug=False,
                                    verbose=False,     datasource=None):
@@ -145,6 +145,17 @@ def insert_hourly_candles(symbols, startTime=None,    endTime=None,
 
 
 def engineer_data(from_date = None, verbose=False):
+    """
+    Get candles from database, add custom indicators.
+
+    Parameters:
+    ---------------
+    from_date: UTC datetime, datestring, or second timestamp.
+        The date at which to pull data from
+
+    verbose: boolean
+        True to print a progress bar.
+    """
 
     def interpolate_nulls(candles):
         candles['interpolated'] = False
@@ -180,14 +191,15 @@ def engineer_data(from_date = None, verbose=False):
         if delta:
             td.append(delta)
 
-    td = max(td)
+    # HACK? using max(td) will return one candle older than needed
+    td = max(td)-timedelta(hours=1)
 
     # Get most recent date in candles
     if not from_date:
-        sql = 'SELECT MAX(open_date) FROM candles;'
-        from_date = Database().execute(sql).iloc[0][0]
+        from_date = get_max_open_date()
     else:
-        from_date = DateConvert(from_date).datetime
+        from_date = tb.DateConvert(from_date).datetime
+
     from_date -= td
 
     if verbose:
@@ -197,6 +209,7 @@ def engineer_data(from_date = None, verbose=False):
     candles = Candles().get_raw(from_date = from_date)
     candles = interpolate_nulls(candles)
     candles.index = candles.symbol
+
     symbols = get_symbols()
     num_symbols = len(symbols)
     total_iterations = num_symbols*num_indicators
@@ -225,7 +238,7 @@ def engineer_data(from_date = None, verbose=False):
             if verbose:
                 tb.progress_bar(
                     count, total_iterations,
-                    f'Calculating {indicator_name} for {symbol}'
+                    f'Calculating {indicator_name}'
                 )
 
         # return indicator_data

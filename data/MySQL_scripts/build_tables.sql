@@ -31,6 +31,7 @@ CREATE TABLE `engineered_data` (
    `number_of_trades` int(11),
    `taker_buy_base_asset_volume` float(20,9),
    `taker_buy_quote_asset_volume` float(20,9),
+   `interpolated` boolean,
    PRIMARY KEY (`id`),
    UNIQUE KEY `stamp` (`open_date`,`symbol`)
 );

@@ -9,6 +9,7 @@ from binance.enums import *
 
 from time import time, sleep
 import pandas as pd
+from datetime import datetime, timedelta
 
 # Custom
 from config import config
@@ -44,7 +45,8 @@ class BinanceData(ExchangeData):
 
     def candle(self, symbol, limit = None, startTime = None, endTime = None):
         """
-        Get hourly candles for a single symbol from the Binance API.
+        Get hourly candles for a single symbol from the Binance API. Only
+        return complete candles.
 
         Parameters:
         -----------
@@ -72,14 +74,25 @@ class BinanceData(ExchangeData):
             'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume',
 
         """
-
+        round_down = lambda date: date.replace(minute=0, second=0, microsecond=0)
+        now_rounded_down = round_down(datetime.utcnow())
+        
         if startTime:
+
+            # If requested date would return an incomplete candle, round down
+            st_rounded_down = round_down(tb.DateConvert(startTime).datetime)
+
+            if st_rounded_down == now_rounded_down:
+                startTime = now_rounded_down - timedelta(hours=1)
+
             startTime = tb.DateConvert(startTime).timestamp*1000
+
         elif not limit:
             limit = 1
 
-        if endTime:
-            endTime = tb.DateConvert(endTime).timestamp*1000
+        if not endTime:
+            endTime = now_rounded_down - timedelta(hours=1)
+        endTime = tb.DateConvert(endTime).timestamp*1000
 
         candle = self.client.get_klines(
                     symbol = symbol,
