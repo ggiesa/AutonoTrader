@@ -3,9 +3,13 @@
 from datetime import datetime, timedelta
 
 from utils.toolbox import parse_datestring, DateConvert
-from utils.database import get_oldest_dates, get_symbols, Database, add_column
+from utils.database import Database
+from utils import database as db
 from ingestion.core import insert_hourly_candles, engineer_data
 from ingestion.custom_indicators import CustomIndicator
+from ingestion.custom_data import CustomData
+from exchanges.binance import BinanceData
+
 
 def update_candles(debug=False):
     """
@@ -13,8 +17,8 @@ def update_candles(debug=False):
     the current time.
     """
 
-    symbols = get_symbols()
-    startTime = get_max_open_date()
+    symbols = db.get_symbols()
+    startTime = db.get_max_from_column(column='open_date')
 
     if debug:
         return insert_hourly_candles(symbols, startTime=startTime, debug=True)
@@ -26,8 +30,6 @@ def update_candles(debug=False):
 
 def insert_engineered_data(verbose = True):
 
-    verbose=True
-
     # Get indicators from subclasses
     indicators = list(CustomIndicator.__subclasses__())
 
@@ -37,16 +39,15 @@ def insert_engineered_data(verbose = True):
 
     for indicator in indicators:
         if indicator.__name__ not in candle_cols:
-            add_column('engineered_data', indicator.__name__, 'float(20,9)')
+            db.add_column('engineered_data', indicator.__name__, 'float(20,9)')
 
     # Get starting date for insert
-    sql = 'SELECT MAX(open_date) FROM engineered_data;'
-    from_date = Database().execute(sql)['MAX(open_date)'].iloc[0]
+    from_date = db.get_max_from_column(
+        table='engineered_data', column='open_date')
 
     # If there's nothing in the table, populate the entire thing
     if not from_date:
-        sql = 'SELECT MIN(open_date) FROM candles;'
-        from_date = Database().execute(sql)['MIN(open_date)'].iloc[0]
+        from_date = db.get_min_from_column(column='open_date')
 
     ins = engineer_data(from_date=from_date, verbose=verbose)
 
@@ -55,13 +56,34 @@ def insert_engineered_data(verbose = True):
     ins.open_date = ins.open_date.map(convert_to_sql)
     ins.close_date = ins.close_date.map(convert_to_sql)
 
-
     if verbose:
         print('Inserting engineered data into database...')
 
     Database().insert('engineered_data', ins, verbose=verbose, auto_format=True)
 
+# TODO finish
+class InsertCustomData:
+    def __init__(self):
+        self.run()
 
+    def run(self):
+        self.get_datasources()
+        self.get_data()
+
+    def insert_and_create_table_if_necessary(self, data):
+        to_insert = d.get_data()
+        Database().insert(data, d.table_name)
+
+    def get_data(self):
+        for datasource in self.datasources:
+            d = datasource()
+            self.insert_and_create_table_if_necessary(d.get_data())
+
+    def get_datasources(self):
+        self.datasources = list(CustomData.__subclasses__())
+
+
+# TODO test
 def get_ticker(from_symbol, to_symbol, insert = False):
     '''Get most recent price for currency pair from Binance API.'''
 

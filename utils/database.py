@@ -3,13 +3,16 @@
 import pymysql
 import pandas as pd
 from config import config
-from pymysql.err import OperationalError, InternalError
+from pymysql.err import OperationalError, InternalError, ProgrammingError
 from utils.toolbox import format_records, progress_bar, chunker, DateConvert
 
 
 class Database:
     '''Connect to MySQL database.'''
-    def __init__(self, config = config.mysql, db='autonotrader'):
+    def __init__(self, config = config.mysql, db=None):
+
+        if not db:
+            db = 'autonotrader'
 
         # Establish connection to MySQL server
         self.config = config
@@ -494,7 +497,122 @@ def add_column(table, column, datatype, db=None):
     else:
         Database().execute(sql)
 
-def get_max_open_date(table='candles', db='autonotrader'):
-    sql = f'SELECT MAX(open_date) FROM {table};'
-    date = Database(db=db).execute(sql)['MAX(open_date)'].iloc[0]
+# TODO convert to generalized table object
+class CreateTable:
+
+    def __init__(self, table_name, dataframe,
+                 db=None, fail_on_duplicate=False, verbose=False):
+        """
+        Automatically build a table from a dataframe.
+
+        Parameters:
+        --------------
+        table_name: str
+            The name of the table to be created
+
+        dataframe: pandas.DataFrame
+            A DataFrame with columns corresponding to the SQL table column names,
+            and data to be interpreted and automatically assigned a SQL type.
+
+        db: str
+            The name of the database to create the table in.
+        """
+        self.table_name = table_name
+        self.verbose = verbose
+        self.data = dataframe
+        self.db = db
+
+        self.table_exists = None
+        self._discover_table()
+
+    def _discover_table(self):
+        """Check to see if table exists in db. If it does, get information."""
+
+        # Check to see if table exists
+        sql = f'SHOW COLUMNS IN {self.table_name};'
+        columns = None
+        try:
+            columns = Database(db=self.db).execute(sql)
+        except ProgrammingError as e:
+            if e.args[0] != 1146:
+                raise e
+
+        self.table_exists = True if columns is not None else False
+        if self.table_exists:
+            if self.verbose:
+                print('Table already exists. Exiting.')
+            return
+        else:
+            self._compose_sql()
+
+
+    def _compose_sql(self):
+        """Compose the create table statement."""
+
+        if self.verbose:
+            print('Creating build table statement.')
+
+        # Conversion from pd to sql dtypes
+        dtype_eq = {
+            'datetime': 'datetime',
+            'float': 'float(20,9)',
+            'int': 'int(15)',
+            'bool': 'boolean',
+            'object': 'varchar(40)'
+            }
+
+        # Detect dtypes
+        dtypes = self.data.dtypes
+        columns = {column:str(dtypes[f'{column}']) for column in dtypes.index}
+
+        # Swap pandas dtype to sql dtype
+        for column, pd_dtype in columns.items():
+            found = False
+            for basetype in dtype_eq:
+                if basetype in pd_dtype:
+                    columns[column] = dtype_eq[basetype]
+                    found = True
+                    continue
+
+            if not found:
+                raise TypeError(f'''Cannot find a way to convert from pandas
+                                    dtype {pd_dtype} to SQL.''')
+
+        # Compose column creation SQL
+        self.row_dec = ''
+        i = 0
+        for column, dtype in columns.items():
+            self.row_dec += f'`{column}` {dtype}'
+            self.row_dec += ', ' if i < len(columns)-1 else ''
+            i+=1
+
+        self._create_table()
+
+    def _create_table(self):
+        """Execute the create table SQL query."""
+
+        if self.verbose:
+            print('Creating table.')
+
+        sql = f"""
+        CREATE TABLE `{self.table_name}` (
+        {self.row_dec}
+        );
+        """
+        try:
+            Database(db=self.db).execute(sql)
+        except Exception as e:
+            print(f'Failed to create table with statement: {sql}')
+            raise e
+
+
+def get_max_from_column(table='candles', column='open_date', db='autonotrader'):
+    sql = f'SELECT MAX({column}) FROM {table};'
+    date = Database(db=db).execute(sql)[f'MAX({column})'].iloc[0]
+    return DateConvert(date).datetime
+
+
+def get_min_from_column(table='candles', column='open_date', db='autonotrader'):
+    sql = f'SELECT MIN({column}) FROM {table};'
+    date = Database(db=db).execute(sql)[f'MIN({column})'].iloc[0]
     return DateConvert(date).datetime

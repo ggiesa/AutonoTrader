@@ -3,7 +3,7 @@ import pandas as pd
 
 from ingestion.core import insert_hourly_candles
 from utils.toolbox import format_records, DateConvert, chunker
-from utils.database import Database, get_symbols, get_max_open_date
+from utils.database import Database, get_symbols
 from datetime import datetime, timedelta
 
 

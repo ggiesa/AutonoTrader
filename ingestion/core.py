@@ -6,7 +6,7 @@ from errors.exceptions import DiscontinuousError
 
 from utils import toolbox as tb
 from exchanges.binance import BinanceData
-from utils.database import Database, Candles, get_symbols, get_max_open_date
+from utils.database import Database, Candles, get_symbols, get_max_from_column
 from ingestion.custom_indicators import CustomIndicator
 
 # TODO break into live and historical components
@@ -196,7 +196,7 @@ def engineer_data(from_date = None, verbose=False):
 
     # Get most recent date in candles
     if not from_date:
-        from_date = get_max_open_date()
+        from_date = get_max_from_column(column='open_date')
     else:
         from_date = tb.DateConvert(from_date).datetime
 
