@@ -98,43 +98,6 @@ class BuySell(base.Backtest):
         self.sell()
 
 
-class TestBot10(base.Backtest):
-    def __init__(self):
-        super().__init__(sql_config = {'test':True, 'truncate_tables':True})
-
-    def get_data(self):
-        if self.verbose:
-            print('Acquiring data')
-        sql = "SELECT * FROM engineered_data order by open_date desc limit 10000;"
-        # sql = "SELECT * FROM engineered_data;"
-        return Database().read(sql)
-
-    def get_symbols(self):
-        return get_symbols_and_pairs(as_df=True)
-
-    def initialize_portfolio(self):
-        purse = {'USDT':1000, 'BTC':1.5}
-        holdout = {'USDT':200, 'BTC':.2}
-        buy_sell_amount = {'BTC':.05, 'USDT':75}
-        slippage = .05
-        trading_fee = .001
-
-        return {
-            'purse':purse,
-            'holdout':holdout,
-            'buy_sell_amount':buy_sell_amount,
-            'slippage':slippage,
-            'trading_fee':trading_fee
-            }
-
-    def generate_signals(self):
-        if self.data[0].close*1.1 < self.data[0].moving_avg_48 \
-        and self.data[0].close < self.data[0].last_base \
-        and self.num_unresolved <= 5:
-            self.buy()
-        elif self.data[0].close > self.data[0].moving_avg_48:
-            self.sell_all()
-
 class BuySell(base.Backtest):
 
     def get_data(self):

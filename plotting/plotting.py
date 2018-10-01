@@ -16,11 +16,11 @@ import plotly.graph_objs as go
 
 def plot_candles(data, symbol,
 
-                 exchange = None,       show_moving_avg = True,
-                 show_volume = True,    show_support = False,
-                 buy_data = None,       sell_data = None,
-                 filename = None,       auto_open = False,
-                 filename_tag = None,   custom_data = None,
+                 exchange =     None,    show_moving_avg =  True,
+                 show_volume =  True,    show_support =     False,
+                 buy_data =     None,    sell_data =        None,
+                 filename =     None,    auto_open =        False,
+                 filename_tag = None,    custom_data =      None,
                  show_vol_avg = True
 
                  ):

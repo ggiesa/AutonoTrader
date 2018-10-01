@@ -13,18 +13,20 @@ def main():
     args = argv
     verbose = True if 'verbose' in args else False
 
+    # TODO not implemented
     if 'insert_ticker' in args:
         Tasks().insert_ticker(verbose=verbose)
         logger.info('Sucessfully inserted ticker data')
 
     if 'insert_candle' in args:
-        Tasks().insert_candle(verbose=verbose)
+        Tasks().insert_candles(verbose=verbose)
         logger.info('Sucessfully inserted candle data')
 
     if 'insert_engineered_features' in args:
         Tasks().insert_engineered_features(verbose=verbose)
         logger.info('Sucessfully inserted engineered data')
 
+    # TODO Not working with new file structure
     if 'run_backtest' in args:
         Tasks().run_backtest(verbose=verbose, sql=True, truncate_tables=True)
         logger.info('Sucessfully ran backtest and generated summary')

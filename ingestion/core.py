@@ -10,6 +10,7 @@ from utils.database import Database, Candles, get_symbols, get_max_from_column
 from ingestion.custom_indicators import CustomIndicator
 
 # TODO break into live and historical components
+# TODO Chunk number doesnt update in progress bar
 def insert_hourly_candles(symbols, startTime=None,    endTime=None,
                                    db='autonotrader', debug=False,
                                    verbose=False,     datasource=None):
@@ -104,7 +105,7 @@ def insert_hourly_candles(symbols, startTime=None,    endTime=None,
                 if verbose:
                     tb.progress_bar(
                         iteration, total_iterations,
-                        f'Getting {symbol}: chunk {chunk_num} of {total_chunks}'
+                        f'Getting {symbol}: chunk {chunk_num} of {total_iterations}'
                     )
 
             chunk_num+=1

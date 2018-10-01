@@ -63,6 +63,7 @@ class BaseData(CustomData):
 
         pairs = db.get_pairs()
         ret = pd.DataFrame()
+        convert_dates = lambda x: tb.DateConvert(x).datetime
 
         for pair in pairs.iterrows():
 
@@ -84,6 +85,7 @@ class BaseData(CustomData):
             df.date = pd.to_datetime(df.date, unit='s')
             df['symbol'] = from_symbol + to_symbol
             df = df[['date', 'symbol', 'type', 'price']]
+            df.date = df.date.map(convert_dates)
 
             ret = pd.concat([ret, df], ignore_index=True)
 

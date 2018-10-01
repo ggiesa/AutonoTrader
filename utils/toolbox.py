@@ -130,16 +130,20 @@ def format_records(records, exclude=[]):
 
     ret=[]
     for dictionary in records:
-        for key in dictionary:
+        for key, val in dictionary.items():
             if key not in exclude:
                 try:
-                    if not dictionary[key] and dictionary[key] != 0:
+                    if not val and val != 0:
                         dictionary[key] = 'NULL'
                     else:
-                        dictionary[key] = pd.to_numeric(dictionary[key])
+                        dictionary[key] = pd.to_numeric(val)
                 except:
+                    if isinstance(val, datetime):
+                        dictionary[key] = DateConvert(val).date
+
                     if isinstance(dictionary[key], str):
-                        dictionary[key] = f"'{dictionary[key]}'"
+                        dictionary[key] = f"'{val}'"
+                        
         ret.append(dictionary)
     return ret
 

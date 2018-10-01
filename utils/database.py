@@ -110,6 +110,11 @@ class Database:
             if ins.empty:
                 return
             ins = ins.to_dict('records')
+        elif not isinstance(ins, [list, dict]):
+            raise TypeError(f'''
+                    Data to insert should be a Pandas DataFrame, dict, or list
+                    of dicts. Instead Database.insert recieved type {type(ins)}
+                ''')
 
         if not ins:
             return
@@ -491,11 +496,27 @@ def get_oldest_dates(symbols=None, db='autonotrader'):
 
 
 def add_column(table, column, datatype, db=None):
+    """
+    Add a column to a MySQL table.
+
+    Parameters:
+    -----------------
+    table: str
+        The name of the table to alter
+
+    column: str
+        The name of the column to create
+
+    datatype: str
+        A valid MySQL data type.
+            Examples:
+                - 'datetime'
+                - 'varchar(100)'
+                - 'int(10)'
+    """
     sql = f'ALTER TABLE {table} ADD {column} {datatype};'
-    if db:
-        Database(db=db).execute(sql)
-    else:
-        Database().execute(sql)
+    Database(db=db).execute(sql)
+
 
 # TODO convert to generalized table object
 class CreateTable:
@@ -616,3 +637,26 @@ def get_min_from_column(table='candles', column='open_date', db='autonotrader'):
     sql = f'SELECT MIN({column}) FROM {table};'
     date = Database(db=db).execute(sql)[f'MIN({column})'].iloc[0]
     return DateConvert(date).datetime
+
+
+def check_table_existence(table, db=None):
+    """
+    Check to see if <table> exists in <db>.
+
+    Parameters:
+    -------------
+    table: str
+        The name of the table to check the existence of.
+
+    db: str
+        The name of the database to use in query.
+
+    Returns:
+    -------------
+    table_exists: boolean
+        True if the table is found in the database, False if not.
+    """
+
+    sql = 'SHOW TABLES;'
+    tables = set(Database(db=db).execute(sql).iloc[:,0])
+    return True if table in tables else False

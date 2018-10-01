@@ -1,6 +1,6 @@
 from utils.database import (
     Database, get_symbols, get_pairs, get_symbols_and_pairs, Candles,
-    get_most_recent_dates, CreateTable
+    get_most_recent_dates, CreateTable, check_table_existence
     )
 from utils.toolbox import DateConvert
 from pymysql.err import OperationalError, ProgrammingError
@@ -81,10 +81,10 @@ class TestCreateTable:
         # Test handling of table that already exists
         data = Database(db=DB).execute('SELECT * FROM candles LIMIT 1;')
         table_name = 'candles'
-        c = CreateTable('candles', data)
+        c = CreateTable('candles', data, db=DB)
         assert c.table_exists, 'discover table failed to find candles'
 
-    def create_table(self):
+    def test_create_table(self):
         # Test handling of a non-existant table
         integer = 1000
         floatt = 99.9
@@ -96,12 +96,17 @@ class TestCreateTable:
                             columns = ['date','integer', 'floatt', 'string'])
 
         try:
-            c = CreateTable(table_name, data)
+            c = CreateTable(table_name, data, db=DB)
             sql = f'SHOW TABLES;'
-            tables = Database(DB=DB).execute(sql)
-            assert table_name in tables[f'Tables_in_{DB}'], 'Table not created'
+            tables = Database(db=DB).execute(sql)
+            assert table_name in set(tables.iloc[:,0]), 'Table not created'
         except Exception as e:
             raise e
         finally:
-            sql = f'DROP TABLE {test_create_table};'
+            sql = f'DROP TABLE {table_name};'
             Database(db=DB).execute(sql)
+
+
+def test_check_table_existence():
+    table='candles'
+    assert check_table_existence(table)

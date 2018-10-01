@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 
 from utils.toolbox import parse_datestring, DateConvert
-from utils.database import Database
+from utils.database import Database, CreateTable
 from utils import database as db
 from ingestion.core import insert_hourly_candles, engineer_data
 from ingestion.custom_indicators import CustomIndicator
@@ -37,6 +37,7 @@ def insert_engineered_data(verbose = True):
     sql = 'SHOW COLUMNS IN engineered_data;'
     candle_cols = list(Database().execute(sql).Field)
 
+    # TODO add_column assumes
     for indicator in indicators:
         if indicator.__name__ not in candle_cols:
             db.add_column('engineered_data', indicator.__name__, 'float(20,9)')
@@ -61,26 +62,28 @@ def insert_engineered_data(verbose = True):
 
     Database().insert('engineered_data', ins, verbose=verbose, auto_format=True)
 
-# TODO finish
-class InsertCustomData:
-    def __init__(self):
-        self.run()
 
-    def run(self):
-        self.get_datasources()
-        self.get_data()
+def insert_custom_data(verbose=False):
+    datasources = list(CustomData.__subclasses__())
 
-    def insert_and_create_table_if_necessary(self, data):
+    for datasource in datasources:
+        d = datasource()
+
+        if verbose:
+            print(f'Acquiring data for {datasource.__name__}')
         to_insert = d.get_data()
-        Database().insert(data, d.table_name)
 
-    def get_data(self):
-        for datasource in self.datasources:
-            d = datasource()
-            self.insert_and_create_table_if_necessary(d.get_data())
+        if not to_insert.empty:
+            if verbose:
+                print(f'Found {len(to_insert)} rows to insert.')
+            try:
+                CreateTable(d.table_name, to_insert, verbose=verbose)
+                Database().insert(d.table_name, to_insert, verbose=verbose)
+                if verbose:
+                    print('Insert successful')
+            except:
+                print(f'Insert for {datasource.__name__} failed.')
 
-    def get_datasources(self):
-        self.datasources = list(CustomData.__subclasses__())
 
 
 # TODO test

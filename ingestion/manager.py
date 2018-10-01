@@ -3,15 +3,12 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from collections import OrderedDict
 import logging
 
 from utils import toolbox as tb
 from utils.database import get_symbols, Database
-from exchanges.binance import BinanceData
-from ingestion import data_collection as dc
-from ingestion.live import get_all_candles,
-from bot import backtest, base
+from ingestion import live, core
+from bot import base
 
 # Set up logging
 logging.basicConfig(
@@ -25,12 +22,9 @@ logger = logging.getLogger(__name__)
 class Tasks:
 
     def __init__(self):
-        # self.pairs = dc.get_pairs()
-        # self.symbols = [row[1].from_symbol+row[1].to_symbol \
-        #                 for row in self.pairs.iterrows()]
         self.symbols = get_symbols()
 
-    # TODO Get working with new system
+    # TODO Get working with new file structure
     def insert_ticker(self, verbose=False):
         try:
             if verbose:
@@ -41,17 +35,11 @@ class Tasks:
             logger.error('insert_ticker failed')
             logger.error(err)
 
-    def insert_candle(self, verbose=False):
+    def insert_candles(self, verbose=False):
         try:
             if verbose:
                 print('Attempting bulk candle insert')
-
-            # Get date of last complete candle
-            # date = datetime.utcnow() - timedelta(hours=1)
-            # date = tb.DateConvert(date).timestamp*1000
-            # dc.get_all_candles(insert=True, endTime=date)
-
-
+            live.update_candles()
         except Exception as err:
             logger.error(f'Insert_candle failed')
             logger.error(err)
@@ -61,13 +49,24 @@ class Tasks:
         try:
             if verbose:
                 print(f'Inserting engineered data.')
-            dc.insert_all_engineered_features(verbose=verbose)
+            live.insert_engineered_data(verbose=verbose)
         except Exception as err:
             logger.error('Insert_engineered_features failed.')
             logger.error(err)
 
 
+    def insert_custom_data(self, verbose=False):
+        try:
+            if verbose:
+                print('Inserting custom data sources.')
+            live.insert_custom_data(verbose=verbose)
+        except Exception as err:
+            logger.error('insert_custom_data failed.')
+            logger.error(err)
+
+
     # TODO Setup metrics SQL table
+    # TODO Get working with current file structure
     def run_backtest(self, verbose=False, test=False,
                            metrics=False, ret=False,
                            sql=False, truncate_tables=False):
@@ -98,7 +97,7 @@ class Tasks:
         try:
             if verbose:
                 print('Running repair_data process')
-            dc.repair_data()
+            core.repair_data(verbose=True)
         except Exception as err:
             logger.error('Backtest process failed.')
             logger.error(err)

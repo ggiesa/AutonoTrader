@@ -39,6 +39,7 @@ class ADABot(Backtest):
             'slippage':slippage,
             'trading_fee':trading_fee
             }
+        
 
     def generate_signals(self):
         """A mock trading strategy."""
