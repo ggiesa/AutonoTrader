@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     args = argv
-    verbose = True if 'verbose' in args else False
+    verbose = 'verbose' in args
 
     # TODO not implemented
     if 'insert_ticker' in args:
